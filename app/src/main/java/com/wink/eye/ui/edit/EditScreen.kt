@@ -49,7 +49,7 @@ fun EditScreen(
     onSave: (Rule) -> Unit,
     onBack: () -> Unit
 ) {
-    var name by remember { mutableStateOf(existingRule?.name ?: "") }
+    var name by remember { mutableStateOf(existingRule?.name ?: "护眼规则") }
     var ruleTypeIndex by remember { mutableStateOf(if (existingRule?.type is RuleType.ScreenTime) 1 else 0) }
     var cronExpression by remember { mutableStateOf((existingRule?.type as? RuleType.Cron)?.expression ?: "0 */30 * * * ?") }
     var screenOnMinutes by remember { mutableFloatStateOf((existingRule?.type as? RuleType.ScreenTime)?.screenOnMinutes?.toFloat() ?: 30f) }

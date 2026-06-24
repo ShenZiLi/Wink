@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,14 +58,18 @@ class MainActivity : ComponentActivity() {
 fun WinkNavHost(repository: RuleRepository) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())
 
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
-            val viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())
+            // 每次进入首页时重新加载规则
+            LaunchedEffect(Unit) {
+                homeViewModel.loadRules()
+            }
             HomeScreen(
                 onAddRule = { navController.navigate("edit/new") },
                 onEditRule = { id -> navController.navigate("edit/$id") },
-                viewModel = viewModel
+                viewModel = homeViewModel
             )
         }
 
@@ -74,6 +79,7 @@ fun WinkNavHost(repository: RuleRepository) {
                 onSave = { rule ->
                     repository.save(rule)
                     onRuleSaved(context, rule)
+                    homeViewModel.loadRules()
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() }
@@ -88,6 +94,7 @@ fun WinkNavHost(repository: RuleRepository) {
                 onSave = { updatedRule ->
                     repository.save(updatedRule)
                     onRuleSaved(context, updatedRule)
+                    homeViewModel.loadRules()
                     navController.popBackStack()
                 },
                 onBack = { navController.popBackStack() }
