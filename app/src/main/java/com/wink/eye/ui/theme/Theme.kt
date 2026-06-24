@@ -111,8 +111,3 @@ fun WinkTheme(content: @Composable () -> Unit) {
     )
 }
 
-@Composable
-@ReadOnlyComposable
-fun currentThemeMode(): ThemeMode {
-    return ThemeManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM).value
-}
