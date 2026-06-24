@@ -4,10 +4,11 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.wink.eye.WinkApp
+import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleRepository
 import com.wink.eye.data.RuleType
-import com.wink.eye.receiver.CronAlarmReceiver
+import com.wink.eye.service.IntervalAlarmScheduler
 import com.wink.eye.service.ScreenMonitorService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,8 +38,12 @@ class HomeViewModel(private val repository: RuleRepository) : ViewModel() {
     fun toggleEnabled(context: Context, rule: Rule) {
         val updated = rule.copy(enabled = !rule.enabled)
         repository.save(updated)
-        if (updated.enabled && updated.type is RuleType.Cron) {
-            CronAlarmReceiver.schedule(context, updated.id, (updated.type as RuleType.Cron).expression)
+        if (updated.enabled && updated.type is RuleType.Interval) {
+            val intervalMs = when (updated.type.unit) {
+                IntervalUnit.SECONDS -> updated.type.value * 1000L
+                IntervalUnit.MINUTES -> updated.type.value * 60 * 1000L
+            }
+            IntervalAlarmScheduler.schedule(context, updated.id, intervalMs)
         }
         syncServicesAfterChange(context)
         loadRules()
@@ -54,8 +59,8 @@ class HomeViewModel(private val repository: RuleRepository) : ViewModel() {
             ScreenMonitorService.stop(context)
         }
 
-        rules.filter { !it.enabled && it.type is RuleType.Cron }.forEach {
-            CronAlarmReceiver.cancel(context, it.id)
+        rules.filter { !it.enabled && it.type is RuleType.Interval }.forEach {
+            IntervalAlarmScheduler.cancel(context, it.id)
         }
     }
 

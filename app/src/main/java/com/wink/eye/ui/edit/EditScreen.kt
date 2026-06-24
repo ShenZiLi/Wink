@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -37,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.wink.eye.R
+import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.ReminderMode
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleType
@@ -51,7 +53,14 @@ fun EditScreen(
 ) {
     var name by remember { mutableStateOf(existingRule?.name ?: "护眼规则") }
     var ruleTypeIndex by remember { mutableStateOf(if (existingRule?.type is RuleType.ScreenTime) 1 else 0) }
-    var cronExpression by remember { mutableStateOf((existingRule?.type as? RuleType.Cron)?.expression ?: "0 */30 * * * ?") }
+
+    // 间隔时间设置
+    val existingInterval = existingRule?.type as? RuleType.Interval
+    var intervalValue by remember { mutableIntStateOf(existingInterval?.value ?: 30) }
+    var intervalValueText by remember { mutableStateOf((existingInterval?.value ?: 30).toString()) }
+    var intervalUnit by remember { mutableStateOf(existingInterval?.unit ?: IntervalUnit.MINUTES) }
+
+    // 亮屏时长设置
     var screenOnMinutes by remember { mutableFloatStateOf((existingRule?.type as? RuleType.ScreenTime)?.screenOnMinutes?.toFloat() ?: 30f) }
     var screenOffResetMinutes by remember { mutableFloatStateOf((existingRule?.type as? RuleType.ScreenTime)?.screenOffResetMinutes?.toFloat() ?: 5f) }
     var reminderMode by remember { mutableStateOf(existingRule?.reminderMode ?: ReminderMode.NOTIFICATION) }
@@ -108,7 +117,7 @@ fun EditScreen(
                 FilterChip(
                     selected = ruleTypeIndex == 0,
                     onClick = { ruleTypeIndex = 0 },
-                    label = { Text(stringResource(R.string.rule_type_cron)) }
+                    label = { Text(stringResource(R.string.rule_type_interval)) }
                 )
                 FilterChip(
                     selected = ruleTypeIndex == 1,
@@ -117,33 +126,75 @@ fun EditScreen(
                 )
             }
 
-            // Cron 表达式
+            // 间隔时间设置
             if (ruleTypeIndex == 0) {
-                OutlinedTextField(
-                    value = cronExpression,
-                    onValueChange = { cronExpression = it },
-                    label = { Text(stringResource(R.string.edit_cron_label)) },
-                    placeholder = { Text(stringResource(R.string.edit_cron_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                // 自定义间隔：每 X 分钟/秒
+                Text(
+                    text = stringResource(R.string.edit_interval_custom_label),
+                    style = MaterialTheme.typography.titleSmall
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("每", style = MaterialTheme.typography.bodyLarge)
+                    OutlinedTextField(
+                        value = intervalValueText,
+                        onValueChange = { text ->
+                            intervalValueText = text.filter { it.isDigit() }
+                            intervalValue = text.filter { it.isDigit() }.toIntOrNull() ?: 0
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 单位切换
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FilterChip(
+                            selected = intervalUnit == IntervalUnit.MINUTES,
+                            onClick = { intervalUnit = IntervalUnit.MINUTES },
+                            label = { Text("分钟") }
+                        )
+                        FilterChip(
+                            selected = intervalUnit == IntervalUnit.SECONDS,
+                            onClick = { intervalUnit = IntervalUnit.SECONDS },
+                            label = { Text("秒") }
+                        )
+                    }
+                }
 
-                // 常用预设
+                // 固定可选项
+                Text(
+                    text = stringResource(R.string.edit_interval_preset_label),
+                    style = MaterialTheme.typography.titleSmall
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = false,
-                        onClick = { cronExpression = "0 */30 * * * ?" },
-                        label = { Text(stringResource(R.string.edit_cron_preset_30min)) }
+                        onClick = {
+                            intervalValue = 15
+                            intervalValueText = "15"
+                            intervalUnit = IntervalUnit.MINUTES
+                        },
+                        label = { Text("每 15 分钟") }
                     )
                     FilterChip(
                         selected = false,
-                        onClick = { cronExpression = "0 0 * * * ?" },
-                        label = { Text(stringResource(R.string.edit_cron_preset_1h)) }
+                        onClick = {
+                            intervalValue = 30
+                            intervalValueText = "30"
+                            intervalUnit = IntervalUnit.MINUTES
+                        },
+                        label = { Text("每 30 分钟") }
                     )
                     FilterChip(
                         selected = false,
-                        onClick = { cronExpression = "0 0 */2 * * ?" },
-                        label = { Text(stringResource(R.string.edit_cron_preset_2h)) }
+                        onClick = {
+                            intervalValue = 1
+                            intervalValueText = "1"
+                            intervalUnit = IntervalUnit.MINUTES
+                        },
+                        label = { Text("每 1 小时") }
                     )
                 }
             }
@@ -203,7 +254,7 @@ fun EditScreen(
             Button(
                 onClick = {
                     val ruleType = if (ruleTypeIndex == 0) {
-                        RuleType.Cron(cronExpression)
+                        RuleType.Interval(value = intervalValue, unit = intervalUnit)
                     } else {
                         RuleType.ScreenTime(
                             screenOnMinutes = screenOnMinutes.toInt(),
@@ -212,7 +263,7 @@ fun EditScreen(
                     }
                     val rule = Rule(
                         id = existingRule?.id ?: UUID.randomUUID().toString(),
-                        name = name.ifBlank { "未命名规则" },
+                        name = name.ifBlank { "护眼规则" },
                         type = ruleType,
                         reminderMode = reminderMode,
                         enabled = existingRule?.enabled ?: true
@@ -220,7 +271,7 @@ fun EditScreen(
                     onSave(rule)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = name.isNotBlank()
+                enabled = name.isNotBlank() && (ruleTypeIndex == 1 || intervalValue > 0)
             ) {
                 Text(stringResource(R.string.edit_save))
             }

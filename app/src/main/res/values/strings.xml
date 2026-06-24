@@ -9,7 +9,7 @@
     <string name="home_delete_rule">删除</string>
 
     <!-- Rule type -->
-    <string name="rule_type_cron">定时提醒</string>
+    <string name="rule_type_interval">定时提醒</string>
     <string name="rule_type_screen">亮屏时长</string>
 
     <!-- Edit -->
@@ -18,11 +18,8 @@
     <string name="edit_name_label">规则名称</string>
     <string name="edit_name_hint">例如：每30分钟提醒</string>
     <string name="edit_type_label">规则类型</string>
-    <string name="edit_cron_label">Cron 表达式</string>
-    <string name="edit_cron_hint">0 */30 * * * ?</string>
-    <string name="edit_cron_preset_30min">每30分钟</string>
-    <string name="edit_cron_preset_1h">每1小时</string>
-    <string name="edit_cron_preset_2h">每2小时</string>
+    <string name="edit_interval_custom_label">自定义间隔</string>
+    <string name="edit_interval_preset_label">快捷选项</string>
     <string name="edit_screen_on_label">亮屏时长阈值（分钟）</string>
     <string name="edit_screen_off_reset_label">暗屏重置时长（分钟）</string>
     <string name="edit_reminder_label">提醒方式</string>

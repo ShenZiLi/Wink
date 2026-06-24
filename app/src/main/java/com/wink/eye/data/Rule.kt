@@ -6,8 +6,11 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed class RuleType {
     @Serializable
-    @SerialName("cron")
-    data class Cron(val expression: String) : RuleType()
+    @SerialName("interval")
+    data class Interval(
+        val value: Int,
+        val unit: IntervalUnit
+    ) : RuleType()
 
     @Serializable
     @SerialName("screen_time")
@@ -15,6 +18,12 @@ sealed class RuleType {
         val screenOnMinutes: Int,
         val screenOffResetMinutes: Int
     ) : RuleType()
+}
+
+@Serializable
+enum class IntervalUnit {
+    @SerialName("seconds") SECONDS,
+    @SerialName("minutes") MINUTES
 }
 
 @Serializable

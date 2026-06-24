@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.wink.eye.R
+import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleType
 import com.wink.eye.ui.theme.ThemeManager
@@ -167,7 +168,7 @@ private fun RuleCard(
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val typeLabel = when (rule.type) {
-                        is RuleType.Cron -> stringResource(R.string.rule_type_cron)
+                        is RuleType.Interval -> stringResource(R.string.rule_type_interval)
                         is RuleType.ScreenTime -> stringResource(R.string.rule_type_screen)
                     }
                     Text(
@@ -199,7 +200,13 @@ private fun RuleCard(
 @Composable
 private fun ruleSummary(rule: Rule): String {
     return when (rule.type) {
-        is RuleType.Cron -> rule.type.expression
+        is RuleType.Interval -> {
+            val unitLabel = when (rule.type.unit) {
+                IntervalUnit.MINUTES -> "分钟"
+                IntervalUnit.SECONDS -> "秒"
+            }
+            "每 ${rule.type.value} $unitLabel"
+        }
         is RuleType.ScreenTime -> "亮屏${rule.type.screenOnMinutes}分钟 / 暗屏重置${rule.type.screenOffResetMinutes}分钟"
     }
 }

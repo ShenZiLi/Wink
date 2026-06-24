@@ -48,7 +48,7 @@
             android:exported="false" />
 
         <receiver
-            android:name=".receiver.CronAlarmReceiver"
+            android:name=".service.IntervalAlarmReceiver"
             android:exported="false" />
 
     </application>

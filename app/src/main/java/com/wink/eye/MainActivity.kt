@@ -15,10 +15,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleRepository
 import com.wink.eye.data.RuleType
-import com.wink.eye.receiver.CronAlarmReceiver
+import com.wink.eye.service.IntervalAlarmScheduler
 import com.wink.eye.service.ScreenMonitorService
 import com.wink.eye.ui.edit.EditScreen
 import com.wink.eye.ui.home.HomeScreen
@@ -107,8 +108,12 @@ private fun onRuleSaved(context: android.content.Context, rule: Rule) {
     if (!rule.enabled) return
 
     when (rule.type) {
-        is RuleType.Cron -> {
-            CronAlarmReceiver.schedule(context, rule.id, rule.type.expression)
+        is RuleType.Interval -> {
+            val intervalMs = when (rule.type.unit) {
+                IntervalUnit.SECONDS -> rule.type.value * 1000L
+                IntervalUnit.MINUTES -> rule.type.value * 60 * 1000L
+            }
+            IntervalAlarmScheduler.schedule(context, rule.id, intervalMs)
         }
         is RuleType.ScreenTime -> {
             ScreenMonitorService.start(context)
@@ -129,8 +134,8 @@ private fun syncServices(context: android.content.Context) {
         ScreenMonitorService.stop(context)
     }
 
-    // 取消所有已禁用 Cron 规则的闹钟
-    rules.filter { !it.enabled && it.type is RuleType.Cron }.forEach {
-        CronAlarmReceiver.cancel(context, it.id)
+    // 取消所有已禁用间隔规则的闹钟
+    rules.filter { !it.enabled && it.type is RuleType.Interval }.forEach {
+        IntervalAlarmScheduler.cancel(context, it.id)
     }
 }
