@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Wink" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.Wink.Reminder" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowShowWhenLocked">true</item>
+        <item name="android:turnScreenOn">true</item>
+    </style>
+</resources>
