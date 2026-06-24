@@ -54,7 +54,7 @@ fun HomeScreen(
 ) {
     val rules by viewModel.rules.collectAsState()
     val context = LocalContext.current
-    val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+    val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
 
     Scaffold(
         topBar = {
@@ -65,17 +65,15 @@ fun HomeScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
-                    IconButton(onClick = { ThemeManager.nextMode(context) }) {
+                    IconButton(onClick = { ThemeManager.toggle(context) }) {
                         Icon(
                             imageVector = when (themeMode) {
                                 ThemeMode.LIGHT -> Icons.Default.LightMode
                                 ThemeMode.DARK -> Icons.Default.ModeNight
-                                ThemeMode.SYSTEM -> Icons.Default.Smartphone
                             },
                             contentDescription = when (themeMode) {
                                 ThemeMode.LIGHT -> stringResource(R.string.theme_light)
                                 ThemeMode.DARK -> stringResource(R.string.theme_dark)
-                                ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
                             }
                         )
                     }

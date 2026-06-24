@@ -14,19 +14,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 enum class ThemeMode {
-    LIGHT, DARK, SYSTEM
+    LIGHT, DARK
 }
 
 object ThemeManager {
     private const val PREFS_NAME = "wink_prefs"
     private const val KEY_THEME = "theme_mode"
 
-    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    private val _themeMode = MutableStateFlow(ThemeMode.LIGHT)
     val themeMode: Flow<ThemeMode> = _themeMode
 
     fun init(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val name = prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+        val name = prefs.getString(KEY_THEME, ThemeMode.LIGHT.name) ?: ThemeMode.LIGHT.name
         _themeMode.value = ThemeMode.valueOf(name)
     }
 
@@ -38,13 +38,8 @@ object ThemeManager {
             .apply()
     }
 
-    fun nextMode(context: Context): ThemeMode {
-        val current = _themeMode.value
-        val next = when (current) {
-            ThemeMode.LIGHT -> ThemeMode.DARK
-            ThemeMode.DARK -> ThemeMode.SYSTEM
-            ThemeMode.SYSTEM -> ThemeMode.LIGHT
-        }
+    fun toggle(context: Context): ThemeMode {
+        val next = if (_themeMode.value == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT
         setThemeMode(context, next)
         return next
     }
@@ -94,14 +89,9 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun WinkTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+    val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
 
-    val darkTheme = when (themeMode) {
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-    }
+    val darkTheme = themeMode == ThemeMode.DARK
 
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
