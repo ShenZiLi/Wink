@@ -1,0 +1,595 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "Wink",
+    "languages": ["kotlin", "xml", "gradle"],
+    "frameworks": ["jetpack-compose", "material3", "android"],
+    "description": "Android 护眼提醒应用，支持定时提醒和亮屏时长监测两种模式，帮助用户养成良好用眼习惯",
+    "analyzedAt": "2025-06-25T21:15:00Z",
+    "gitCommitHash": "c1e2ab3182eb6bf053c57cf24b81731cc7608707"
+  },
+  "nodes": [
+    {
+      "id": "file:app/build.gradle.kts",
+      "type": "config",
+      "name": "App Build Config",
+      "filePath": "app/build.gradle.kts",
+      "summary": "应用级 Gradle 构建配置，定义 compileSdk 36、minSdk 34、Compose 依赖、Kotlin Serialization 和 cron-utils",
+      "tags": ["config", "gradle", "build"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:build.gradle.kts",
+      "type": "config",
+      "name": "Root Build Config",
+      "filePath": "build.gradle.kts",
+      "summary": "根项目 Gradle 配置，声明 Android Application、Kotlin、Serialization、Compose 插件版本",
+      "tags": ["config", "gradle", "build"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:settings.gradle.kts",
+      "type": "config",
+      "name": "Settings Config",
+      "filePath": "settings.gradle.kts",
+      "summary": "Gradle 设置文件，配置插件仓库和依赖解析仓库，包含 :app 模块",
+      "tags": ["config", "gradle"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/AndroidManifest.xml",
+      "type": "config",
+      "name": "Android Manifest",
+      "filePath": "app/src/main/AndroidManifest.xml",
+      "summary": "应用清单，声明 MainActivity、ReminderActivity、ScreenMonitorService 前台服务、ScreenReceiver 和 IntervalAlarmReceiver 广播接收器，以及前台服务、通知、闹钟、唤醒锁等权限",
+      "tags": ["config", "android", "manifest"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/res/values/strings.xml",
+      "type": "config",
+      "name": "String Resources",
+      "filePath": "app/src/main/res/values/strings.xml",
+      "summary": "中文字符串资源，包含首页、规则类型、编辑页、提醒、服务、主题等所有界面文案",
+      "tags": ["config", "android", "resources"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/res/values/themes.xml",
+      "type": "config",
+      "name": "Theme Resources",
+      "filePath": "app/src/main/res/values/themes.xml",
+      "summary": "XML 主题定义，包含 Wink 基础主题和 Reminder 全屏主题样式",
+      "tags": ["config", "android", "resources"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "type": "file",
+      "name": "WinkApp",
+      "filePath": "app/src/main/java/com/wink/eye/WinkApp.kt",
+      "summary": "Application 类，全局持有 RuleRepository 单例，作为应用入口提供依赖注入",
+      "tags": ["app", "entry-point", "singleton"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "type": "file",
+      "name": "MainActivity",
+      "filePath": "app/src/main/java/com/wink/eye/MainActivity.kt",
+      "summary": "主 Activity，设置 Compose UI 和导航图（home → edit/new → edit/{ruleId}），处理通知权限和精确闹钟权限请求，管理规则保存后的服务同步逻辑",
+      "tags": ["app", "activity", "navigation", "compose"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ReminderActivity.kt",
+      "type": "file",
+      "name": "ReminderActivity",
+      "filePath": "app/src/main/java/com/wink/eye/ReminderActivity.kt",
+      "summary": "全屏提醒 Activity，锁屏状态下显示护眼提醒界面，播放闹钟铃声，用户点击关闭后停止播放并关闭页面",
+      "tags": ["app", "activity", "reminder", "alarm"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "file",
+      "name": "Rule Model",
+      "filePath": "app/src/main/java/com/wink/eye/data/Rule.kt",
+      "summary": "核心数据模型，定义 Rule（id、名称、类型、提醒模式、启用状态）、RuleType 密封类（Interval 定时 / ScreenTime 亮屏时长）、IntervalUnit、ReminderMode 枚举，全部使用 Kotlin Serialization",
+      "tags": ["data", "model", "serialization", "domain"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt",
+      "type": "file",
+      "name": "RuleRepository",
+      "filePath": "app/src/main/java/com/wink/eye/data/RuleRepository.kt",
+      "summary": "规则持久化仓库，使用 SharedPreferences 存储 JSON 序列化的规则列表，提供 getAll、getById、save、delete 操作",
+      "tags": ["data", "repository", "persistence", "shared-preferences"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "type": "file",
+      "name": "ScreenMonitorService",
+      "filePath": "app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "summary": "前台服务，持续监测亮屏累计时长。通过 BroadcastReceiver 接收屏幕亮灭事件，每分钟检查一次是否达到 ScreenTime 规则阈值，达到后触发提醒并重置计时。暗屏超过重置阈值时自动重置累计时间",
+      "tags": ["service", "foreground-service", "screen-monitor", "core-logic"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "type": "file",
+      "name": "IntervalAlarmScheduler",
+      "filePath": "app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "summary": "定时闹钟调度器，使用 AlarmManager 设置精确闹钟（setExactAndAllowWhileIdle），不支持精确闹钟时降级为非精确重复闹钟，提供 schedule 和 cancel 方法",
+      "tags": ["service", "alarm", "scheduler", "android-system"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "type": "file",
+      "name": "IntervalAlarmReceiver",
+      "filePath": "app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "summary": "闹钟触发广播接收器，收到闹钟后查找对应规则并触发提醒，然后重新调度下一次闹钟形成循环",
+      "tags": ["service", "receiver", "alarm", "broadcast"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "type": "file",
+      "name": "ReminderHelper",
+      "filePath": "app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "summary": "提醒分发工具，根据规则的 ReminderMode 决定触发全屏闹钟（ReminderActivity）还是通知弹窗（带声音和振动的高优先级通知）。包含 DismissReceiver 处理通知关闭",
+      "tags": ["service", "reminder", "notification", "helper"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt",
+      "type": "file",
+      "name": "ScreenReceiver",
+      "filePath": "app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt",
+      "summary": "屏幕状态广播接收器，监听 ACTION_SCREEN_ON/ACTION_SCREEN_OFF，转发给 ScreenMonitorService 处理",
+      "tags": ["receiver", "broadcast", "screen-events"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/util/CronHelper.kt",
+      "type": "file",
+      "name": "CronHelper",
+      "filePath": "app/src/main/java/com/wink/eye/util/CronHelper.kt",
+      "summary": "Cron 表达式工具类，基于 cron-utils 库提供表达式校验、下次执行时间计算和描述生成（当前代码中未实际使用）",
+      "tags": ["util", "cron", "unused"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "type": "file",
+      "name": "HomeViewModel",
+      "filePath": "app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "summary": "首页 ViewModel，管理规则列表的 StateFlow，提供 loadRules、deleteRule、toggleEnabled 操作，切换启用状态时自动调度/取消闹钟和服务",
+      "tags": ["ui", "viewmodel", "state-management"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "type": "file",
+      "name": "HomeScreen",
+      "filePath": "app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "summary": "首页 Compose UI，显示规则列表（LazyColumn），每个规则卡片包含名称、类型标签、摘要、启用开关和删除按钮，空状态显示引导文案，顶栏支持主题切换和添加规则",
+      "tags": ["ui", "compose", "screen", "list"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt",
+      "type": "file",
+      "name": "EditScreen",
+      "filePath": "app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt",
+      "summary": "规则编辑 Compose UI，支持新建和编辑模式，提供规则名称输入、类型切换（定时/亮屏）、间隔时间设置（自定义+预设）、亮屏时长滑块、暗屏重置滑块、提醒方式选择",
+      "tags": ["ui", "compose", "screen", "form"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+      "type": "file",
+      "name": "Theme",
+      "filePath": "app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+      "summary": "Compose 主题系统，定义 ThemeManager（SharedPreferences 持久化亮暗模式）、亮色和暗色 Material3 色彩方案、WinkTheme Composable",
+      "tags": ["ui", "theme", "compose", "material3"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/src/main/java/com/wink/eye/ui/theme/Color.kt",
+      "type": "file",
+      "name": "Color",
+      "filePath": "app/src/main/java/com/wink/eye/ui/theme/Color.kt",
+      "summary": "颜色定义，护眼绿色调配色方案，包含亮色和暗色模式的所有 Material3 色彩 token",
+      "tags": ["ui", "theme", "color", "design"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "type": "imports",
+      "description": "访问 WinkApp.instance 获取 RuleRepository",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "使用 Rule、RuleType、IntervalUnit 数据类型",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt",
+      "type": "imports",
+      "description": "调用 repository 保存和查询规则",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "type": "imports",
+      "description": "规则保存后调度闹钟",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "type": "imports",
+      "description": "规则保存后启动/停止前台服务",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "type": "imports",
+      "description": "导航到首页",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt",
+      "type": "imports",
+      "description": "导航到编辑页",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "type": "imports",
+      "description": "创建和使用 HomeViewModel",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+      "type": "imports",
+      "description": "应用 WinkTheme 和初始化 ThemeManager",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ReminderActivity.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "type": "imports",
+      "description": "使用 ReminderHelper.EXTRA_RULE_NAME 常量",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt",
+      "type": "imports",
+      "description": "创建 RuleRepository 实例",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "target": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "type": "imports",
+      "description": "访问 WinkApp.instance 获取规则数据",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "读取 RuleType.ScreenTime 类型判断",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "target": "file:app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt",
+      "type": "imports",
+      "description": "注册 ScreenReceiver 监听屏幕事件",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "type": "calls",
+      "description": "亮屏时间达标时调用 triggerReminder",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "type": "configures",
+      "description": "创建指向 IntervalAlarmReceiver 的 PendingIntent",
+      "weight": 0.6
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "target": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "type": "imports",
+      "description": "获取规则数据判断是否触发",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "读取 Rule 类型判断",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "type": "calls",
+      "description": "闹钟触发后调用 triggerReminder",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "type": "calls",
+      "description": "触发后重新调度下一次闹钟",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ReminderActivity.kt",
+      "type": "calls",
+      "description": "ALARM 模式启动全屏提醒 Activity",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "使用 Rule、ReminderMode 类型",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "type": "calls",
+      "description": "屏幕亮灭事件转发给 ScreenMonitorService",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "target": "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+      "type": "imports",
+      "description": "通过 Factory 获取 RuleRepository",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt",
+      "type": "imports",
+      "description": "调用 getAll、save、delete 操作",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "使用 Rule、RuleType、IntervalUnit 类型",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+      "type": "calls",
+      "description": "启用间隔规则时调度闹钟",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "target": "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+      "type": "calls",
+      "description": "根据规则状态启动/停止前台服务",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+      "type": "imports",
+      "description": "订阅 rules StateFlow 显示规则列表",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "读取 Rule 类型生成摘要文本",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+      "type": "imports",
+      "description": "读取 ThemeManager.themeMode 切换图标",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt",
+      "target": "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+      "type": "imports",
+      "description": "构建 Rule 对象保存",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+      "target": "file:app/src/main/java/com/wink/eye/ui/theme/Color.kt",
+      "type": "imports",
+      "description": "引用颜色常量构建色彩方案",
+      "weight": 0.7
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:app-entry",
+      "name": "应用入口",
+      "description": "Application 类和 Activity 组件，负责应用初始化、权限请求、导航和页面生命周期管理",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/WinkApp.kt",
+        "file:app/src/main/java/com/wink/eye/MainActivity.kt",
+        "file:app/src/main/java/com/wink/eye/ReminderActivity.kt"
+      ]
+    },
+    {
+      "id": "layer:data",
+      "name": "数据层",
+      "description": "核心数据模型和持久化逻辑，定义规则类型系统和 SharedPreferences 存储",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+        "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt"
+      ]
+    },
+    {
+      "id": "layer:service",
+      "name": "服务层",
+      "description": "后台服务和系统交互组件，包括前台服务监测亮屏时间、AlarmManager 调度、广播接收器和提醒分发",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt",
+        "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+        "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt",
+        "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+        "file:app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt"
+      ]
+    },
+    {
+      "id": "layer:ui",
+      "name": "UI 层",
+      "description": "Jetpack Compose 界面组件，包括首页规则列表、规则编辑表单、ViewModel 状态管理和主题系统",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+        "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt",
+        "file:app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt",
+        "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+        "file:app/src/main/java/com/wink/eye/ui/theme/Color.kt"
+      ]
+    },
+    {
+      "id": "layer:util",
+      "name": "工具层",
+      "description": "通用工具类（当前仅 CronHelper，未实际使用）",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/util/CronHelper.kt"
+      ]
+    },
+    {
+      "id": "layer:config",
+      "name": "配置与资源",
+      "description": "Gradle 构建配置、Android Manifest、字符串和主题资源文件",
+      "nodeIds": [
+        "file:build.gradle.kts",
+        "file:settings.gradle.kts",
+        "file:app/build.gradle.kts",
+        "file:app/src/main/AndroidManifest.xml",
+        "file:app/src/main/res/values/strings.xml",
+        "file:app/src/main/res/values/themes.xml"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "应用配置与入口",
+      "description": "从 Gradle 构建配置和 Android Manifest 开始，了解项目的依赖、权限声明和组件注册。WinkApp 是全局入口，持有 RuleRepository 单例。",
+      "nodeIds": [
+        "file:build.gradle.kts",
+        "file:app/build.gradle.kts",
+        "file:app/src/main/AndroidManifest.xml",
+        "file:app/src/main/java/com/wink/eye/WinkApp.kt"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "数据模型",
+      "description": "Rule 是核心数据模型，通过密封类 RuleType 支持两种提醒触发方式：Interval（固定间隔）和 ScreenTime（累计亮屏时长）。RuleRepository 使用 SharedPreferences + JSON 序列化实现持久化。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/data/Rule.kt",
+        "file:app/src/main/java/com/wink/eye/data/RuleRepository.kt"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "定时提醒机制",
+      "description": "IntervalAlarmScheduler 使用 AlarmManager 设置精确闹钟，IntervalAlarmReceiver 收到闹钟后触发 ReminderHelper，再重新调度下一次闹钟形成循环。支持精确和非精确两种模式降级。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/service/IntervalAlarmScheduler.kt",
+        "file:app/src/main/java/com/wink/eye/service/IntervalAlarmReceiver.kt"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "亮屏时长监测",
+      "description": "ScreenMonitorService 是前台服务，ScreenReceiver 监听屏幕亮灭事件并转发。服务维护累计亮屏时间，每分钟检查是否达到阈值，暗屏超过重置时间后自动清零。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/receiver/ScreenReceiver.kt",
+        "file:app/src/main/java/com/wink/eye/service/ScreenMonitorService.kt"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "提醒分发",
+      "description": "ReminderHelper 根据规则的提醒模式分发：ALARM 模式启动 ReminderActivity 全屏响铃，NOTIFICATION 模式发送高优先级通知（带声音、振动和锁屏弹窗）。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/service/ReminderHelper.kt",
+        "file:app/src/main/java/com/wink/eye/ReminderActivity.kt"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "主界面与导航",
+      "description": "MainActivity 设置 Compose 导航图：首页（规则列表）→ 编辑页（新建/编辑规则）。保存规则后自动调度闹钟和启动/停止前台服务，实现服务同步。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/MainActivity.kt"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "首页规则列表",
+      "description": "HomeViewModel 管理规则列表状态，支持加载、删除和切换启用状态。HomeScreen 使用 LazyColumn 展示规则卡片，包含类型标签、摘要和操作按钮。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/ui/home/HomeViewModel.kt",
+        "file:app/src/main/java/com/wink/eye/ui/home/HomeScreen.kt"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "规则编辑",
+      "description": "EditScreen 是规则编辑表单，支持名称输入、类型切换（定时/亮屏）、间隔设置（自定义+预设）、滑块调节和提醒方式选择。新建和编辑复用同一组件。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/ui/edit/EditScreen.kt"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "主题与资源",
+      "description": "ThemeManager 通过 SharedPreferences 持久化亮暗模式，WinkTheme 提供 Material3 色彩方案。Color.kt 定义护眼绿色调配色，strings.xml 包含所有中文界面文案。",
+      "nodeIds": [
+        "file:app/src/main/java/com/wink/eye/ui/theme/Theme.kt",
+        "file:app/src/main/java/com/wink/eye/ui/theme/Color.kt",
+        "file:app/src/main/res/values/strings.xml",
+        "file:app/src/main/res/values/themes.xml"
+      ]
+    }
+  ]
+}

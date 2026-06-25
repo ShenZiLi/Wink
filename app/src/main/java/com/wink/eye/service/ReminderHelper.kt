@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,13 +18,13 @@ import com.wink.eye.data.Rule
 object ReminderHelper {
 
     private const val CHANNEL_ID = "wink_reminder"
-    private const val CHANNEL_NAME = "护眼提醒"
+    private const val ALARM_CHANNEL_ID = "wink_alarm"
     private const val TAG = "ReminderHelper"
 
     fun triggerReminder(context: Context, rule: Rule) {
         Log.d(TAG, "触发提醒: ${rule.name}, 模式: ${rule.reminderMode}")
-        
-        ensureChannel(context)
+
+        ensureChannels(context)
 
         when (rule.reminderMode) {
             ReminderMode.ALARM -> triggerAlarm(context, rule)
@@ -33,19 +34,41 @@ object ReminderHelper {
 
     private fun triggerAlarm(context: Context, rule: Rule) {
         Log.d(TAG, "触发全屏提醒")
-        val intent = Intent(context, ReminderActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+
+        val fullScreenIntent = Intent(context, ReminderActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_RULE_ID, rule.id)
             putExtra(EXTRA_RULE_NAME, rule.name)
         }
-        context.startActivity(intent)
+        val fullScreenPendingIntent = PendingIntent.getActivity(
+            context,
+            rule.id.hashCode(),
+            fullScreenIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, ALARM_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(context.getString(R.string.reminder_notification_title))
+            .setContentText(context.getString(R.string.reminder_notification_text))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(false)
+            .setOngoing(true)
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            .setVibrate(longArrayOf(0, 500, 200, 500))
+            .build()
+
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val notificationId = rule.id.hashCode()
+        notificationManager.notify(notificationId, notification)
+        Log.d(TAG, "全屏提醒通知已发送，ID: $notificationId")
     }
 
     private fun triggerNotification(context: Context, rule: Rule) {
         Log.d(TAG, "触发通知提醒")
-        
-        // 创建点击通知时打开的 Intent
+
         val contentIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
@@ -56,7 +79,6 @@ object ReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // 创建全屏 Intent（用于锁屏弹窗）
         val fullScreenIntent = Intent(context, ReminderActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_RULE_ID, rule.id)
@@ -99,8 +121,11 @@ object ReminderHelper {
         Log.d(TAG, "通知已发送，ID: $notificationId")
     }
 
-    private fun ensureChannel(context: Context) {
-        val channel = NotificationChannel(
+    private fun ensureChannels(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+
+        // 通知提醒渠道
+        val reminderChannel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.reminder_channel_name),
             NotificationManager.IMPORTANCE_HIGH
@@ -110,14 +135,32 @@ object ReminderHelper {
             vibrationPattern = longArrayOf(0, 500, 200, 500)
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
         }
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        manager.createNotificationChannel(reminderChannel)
+
+        // 闹钟提醒渠道（独立渠道，使用闹钟声音类型）
+        val alarmChannel = NotificationChannel(
+            ALARM_CHANNEL_ID,
+            "持续响铃提醒",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "全屏闹钟提醒，使用闹钟声音"
+            enableVibration(true)
+            vibrationPattern = longArrayOf(0, 500, 200, 500)
+            setSound(
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+        }
+        manager.createNotificationChannel(alarmChannel)
         Log.d(TAG, "通知渠道已创建")
     }
 
