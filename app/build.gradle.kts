@@ -57,7 +57,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    implementation("com.cronutils:cron-utils:9.2.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

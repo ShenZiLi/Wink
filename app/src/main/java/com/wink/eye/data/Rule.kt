@@ -15,11 +15,21 @@ sealed class RuleType {
     @Serializable
     @SerialName("screen_time")
     data class ScreenTime(
-        val screenOnDuration: Int,
-        val screenOffResetDuration: Int,
-        val screenOnUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES,
-        val screenOffResetUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES
-    ) : RuleType()
+        @SerialName("screenOnDuration") val screenOnDuration: Int = 0,
+        @SerialName("screenOffResetDuration") val screenOffResetDuration: Int = 0,
+        @SerialName("screenOnUnit") val screenOnUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES,
+        @SerialName("screenOffResetUnit") val screenOffResetUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES,
+        @Deprecated("Legacy field, migrated to screenOnDuration")
+        @SerialName("screenOnMinutes") val screenOnMinutes: Int = 0,
+        @Deprecated("Legacy field, migrated to screenOffResetDuration")
+        @SerialName("screenOffResetMinutes") val screenOffResetMinutes: Int = 0
+    ) : RuleType() {
+        /** 兼容旧数据：优先使用新字段，旧字段非零时自动迁移 */
+        val effectiveScreenOnDuration: Int
+            get() = if (screenOnDuration > 0) screenOnDuration else screenOnMinutes
+        val effectiveScreenOffResetDuration: Int
+            get() = if (screenOffResetDuration > 0) screenOffResetDuration else screenOffResetMinutes
+    }
 }
 
 @Serializable

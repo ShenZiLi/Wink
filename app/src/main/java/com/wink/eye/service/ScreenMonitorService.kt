@@ -9,11 +9,13 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import android.view.Display
 import com.wink.eye.R
 import com.wink.eye.WinkApp
 import com.wink.eye.data.RuleType
@@ -38,12 +40,16 @@ class ScreenMonitorService : Service() {
     private var isScreenOn: Boolean = true
     private var screenReceiver: ScreenReceiver? = null
 
+    // #8 递归防护
+    private var scheduleRecursionCount = 0
+
     private val checkRunnable = object : Runnable {
         override fun run() {
             if (isScreenOn) {
                 val currentAccumulated = accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
                 checkScreenTimeRules(currentAccumulated)
                 updateDebugInfo()
+                updateForegroundNotification()
             }
             handler.postDelayed(this, checkIntervalMs)
         }
@@ -53,9 +59,41 @@ class ScreenMonitorService : Service() {
         get() {
             val minThresholdMs = getMinScreenOnThresholdMs()
             if (minThresholdMs <= 0) return 60_000L
-            // 检查间隔为最小阈值的 1/10，最低 1 秒
             return (minThresholdMs / 10).coerceIn(1_000L, 60_000L)
         }
+
+    // #2 状态持久化
+    private val statePrefs: android.content.SharedPreferences
+        get() = getSharedPreferences("wink_screen_state", Context.MODE_PRIVATE)
+
+    private fun saveState() {
+        statePrefs.edit()
+            .putLong(KEY_ACCUMULATED_MS, accumulatedScreenOnMs)
+            .putLong(KEY_SCREEN_ON_TIME, if (isScreenOn) screenOnTime else 0L)
+            .putLong(KEY_SCREEN_OFF_TIME, screenOffTime)
+            .putBoolean(KEY_IS_SCREEN_ON, isScreenOn)
+            .putLong(KEY_LAST_SCREEN_OFF_TIMESTAMP, lastScreenOffTimestamp)
+            .apply()
+    }
+
+    private fun restoreState() {
+        val prefs = statePrefs
+        // 如果没有保存过状态，使用默认值
+        if (!prefs.contains(KEY_IS_SCREEN_ON)) return
+
+        accumulatedScreenOnMs = prefs.getLong(KEY_ACCUMULATED_MS, 0L)
+        isScreenOn = prefs.getBoolean(KEY_IS_SCREEN_ON, true)
+        screenOffTime = prefs.getLong(KEY_SCREEN_OFF_TIME, 0L)
+        lastScreenOffTimestamp = prefs.getLong(KEY_LAST_SCREEN_OFF_TIMESTAMP, 0L)
+
+        val savedScreenOnTime = prefs.getLong(KEY_SCREEN_ON_TIME, 0L)
+        if (isScreenOn && savedScreenOnTime > 0) {
+            // 重启前是亮屏状态，累计从保存的 screenOnTime 开始
+            screenOnTime = savedScreenOnTime
+        } else {
+            screenOnTime = System.currentTimeMillis()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -71,15 +109,29 @@ class ScreenMonitorService : Service() {
             registerReceiver(it, filter)
         }
 
-        // 初始化屏幕状态
-        isScreenOn = true
-        screenOnTime = System.currentTimeMillis()
+        // #2 恢复持久化状态
+        restoreState()
+
+        // #6 查询实际屏幕状态（避免重启后状态不准）
+        isScreenOn = isScreenCurrentlyOn().also { actualScreenOn ->
+            if (actualScreenOn) {
+                screenOnTime = System.currentTimeMillis()
+            } else {
+                screenOffTime = System.currentTimeMillis()
+                lastScreenOffTimestamp = screenOffTime
+            }
+        }
 
         // 启动定时检查
         handler.post(checkRunnable)
 
         // 亮屏时调度 AlarmManager 闹钟
-        scheduleScreenTimeAlarm()
+        if (isScreenOn) {
+            scheduleScreenTimeAlarm()
+        }
+
+        updateDebugInfo()
+        saveState()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -91,10 +143,26 @@ class ScreenMonitorService : Service() {
         super.onDestroy()
     }
 
+    // #3 onTaskRemoved 安全重启（Android 12+ 不能直接 startForegroundService）
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // 服务被杀后重启
-        val restartIntent = Intent(this, ScreenMonitorService::class.java)
-        startForegroundService(restartIntent)
+        saveState()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ 使用 AlarmManager 延迟重启
+            val restartIntent = Intent(this, ScreenMonitorService::class.java)
+            val pendingIntent = PendingIntent.getService(
+                this, RESTART_REQUEST_CODE, restartIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                android.os.SystemClock.elapsedRealtime() + 1000,
+                pendingIntent
+            )
+        } else {
+            val restartIntent = Intent(this, ScreenMonitorService::class.java)
+            startForegroundService(restartIntent)
+        }
         super.onTaskRemoved(rootIntent)
     }
 
@@ -102,20 +170,18 @@ class ScreenMonitorService : Service() {
         val now = System.currentTimeMillis()
         if (!isScreenOn) {
             val offDuration = now - screenOffTime
-            // 检查所有亮屏时长规则，取最小重置时间
             val minResetMs = getMinScreenOffResetMs()
             if (minResetMs > 0 && offDuration >= minResetMs) {
-                // 暗屏超过重置阈值，重置累计时间
                 accumulatedScreenOnMs = 0L
             }
             isScreenOn = true
             screenOnTime = now
 
-            // 亮屏时立即检查并调度闹钟
             val currentAccumulated = accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
             checkScreenTimeRules(currentAccumulated)
             scheduleScreenTimeAlarm()
             updateDebugInfo()
+            saveState()
         }
     }
 
@@ -126,9 +192,9 @@ class ScreenMonitorService : Service() {
             screenOffTime = System.currentTimeMillis()
             lastScreenOffTimestamp = screenOffTime
 
-            // 暗屏时取消待触发的闹钟
             cancelScreenTimeAlarm()
             updateDebugInfo()
+            saveState()
         }
     }
 
@@ -141,20 +207,55 @@ class ScreenMonitorService : Service() {
         )
     }
 
-    // ---- AlarmManager 调度（保证后台/Doze 下可靠触发）----
+    // #16 前台通知显示实时亮屏时长
+    private fun updateForegroundNotification() {
+        val currentOnMs = if (isScreenOn) {
+            accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
+        } else {
+            accumulatedScreenOnMs
+        }
+        val text = "${getString(R.string.service_notification_text)} · ${formatDuration(currentOnMs)}"
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.service_notification_title))
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setOngoing(true)
+            .build()
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private fun formatDuration(ms: Long): String {
+        val totalSeconds = ms / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return if (hours > 0) "${hours}h${minutes}m${seconds}s" else "${minutes}m${seconds}s"
+    }
+
+    // ---- AlarmManager 调度 ----
 
     private fun scheduleScreenTimeAlarm() {
         if (!isScreenOn) return
 
+        // #8 递归防护
+        scheduleRecursionCount++
+        if (scheduleRecursionCount > MAX_SCHEDULE_RECURSION) {
+            Log.w(TAG, "scheduleScreenTimeAlarm 递归超过 $MAX_SCHEDULE_RECURSION 次，终止")
+            scheduleRecursionCount = 0
+            return
+        }
+
         val minRemainingMs = getMinRemainingScreenOnMs()
         if (minRemainingMs <= 0) {
-            // 已经超过阈值，立即检查
             val currentAccumulated = accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
             checkScreenTimeRules(currentAccumulated)
-            // 检查后可能需要再调度
             scheduleScreenTimeAlarm()
             return
         }
+
+        // 成功调度后重置计数
+        scheduleRecursionCount = 0
 
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val triggerAtMs = System.currentTimeMillis() + minRemainingMs
@@ -179,7 +280,6 @@ class ScreenMonitorService : Service() {
             }
         }
 
-        // 无精确闹钟权限时用非精确闹钟
         alarmManager.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             triggerAtMs,
@@ -206,33 +306,44 @@ class ScreenMonitorService : Service() {
 
     // ---- 规则检查 ----
 
+    // #7 多规则时先收集再重置
     private fun checkScreenTimeRules(currentAccumulatedMs: Long) {
         val rules = WinkApp.instance.ruleRepository.getAll()
+        val triggeredRules = mutableListOf<com.wink.eye.data.Rule>()
+        var minThresholdMs = Long.MAX_VALUE
+
         rules.filter { it.enabled && it.type is RuleType.ScreenTime }.forEach { rule ->
             val screenTimeType = rule.type as RuleType.ScreenTime
-            val thresholdMs = screenTimeType.screenOnDuration * if (screenTimeType.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
+            val thresholdMs = screenTimeType.effectiveScreenOnDuration * if (screenTimeType.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
             if (currentAccumulatedMs >= thresholdMs) {
-                ReminderHelper.triggerReminder(this, rule)
-                // 触发后重置累计时间
-                accumulatedScreenOnMs = 0L
-                screenOnTime = System.currentTimeMillis()
+                triggeredRules.add(rule)
+                minThresholdMs = minOf(minThresholdMs, thresholdMs)
             }
+        }
+
+        // 统一触发所有匹配的规则
+        triggeredRules.forEach { rule ->
+            ReminderHelper.triggerReminder(this, rule)
+        }
+
+        // 全部触发后重置一次
+        if (triggeredRules.isNotEmpty()) {
+            accumulatedScreenOnMs = 0L
+            screenOnTime = System.currentTimeMillis()
         }
     }
 
-    /** 获取所有启用的亮屏时长规则中最小的阈值（毫秒） */
     private fun getMinScreenOnThresholdMs(): Long {
         val rules = WinkApp.instance.ruleRepository.getAll()
         return rules
             .filter { it.enabled && it.type is RuleType.ScreenTime }
             .minOfOrNull {
                 val st = it.type as RuleType.ScreenTime
-                st.screenOnDuration * if (st.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
+                st.effectiveScreenOnDuration * if (st.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
             }
             ?: 0L
     }
 
-    /** 获取当前亮屏累计时间距离最小阈值还剩多少毫秒 */
     private fun getMinRemainingScreenOnMs(): Long {
         if (!isScreenOn) return Long.MAX_VALUE
         val minThresholdMs = getMinScreenOnThresholdMs()
@@ -247,9 +358,15 @@ class ScreenMonitorService : Service() {
             .filter { it.enabled && it.type is RuleType.ScreenTime }
             .minOfOrNull {
                 val st = it.type as RuleType.ScreenTime
-                st.screenOffResetDuration * if (st.screenOffResetUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
+                st.effectiveScreenOffResetDuration * if (st.screenOffResetUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
             }
             ?: 0L
+    }
+
+    // #6 查询当前屏幕实际状态
+    private fun isScreenCurrentlyOn(): Boolean {
+        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        return displayManager.displays.any { it.state != Display.STATE_OFF }
     }
 
     private fun createNotificationChannel() {
@@ -278,6 +395,17 @@ class ScreenMonitorService : Service() {
         private const val CHANNEL_ID = "wink_screen_monitor"
         private const val NOTIFICATION_ID = 1001
         private const val SCREEN_TIME_ALARM_REQUEST_CODE = 2001
+        private const val RESTART_REQUEST_CODE = 3001
+
+        // #8 递归防护
+        private const val MAX_SCHEDULE_RECURSION = 5
+
+        // #2 状态持久化 key
+        private const val KEY_ACCUMULATED_MS = "accumulated_ms"
+        private const val KEY_SCREEN_ON_TIME = "screen_on_time"
+        private const val KEY_SCREEN_OFF_TIME = "screen_off_time"
+        private const val KEY_IS_SCREEN_ON = "is_screen_on"
+        private const val KEY_LAST_SCREEN_OFF_TIMESTAMP = "last_screen_off_timestamp"
 
         private var lastScreenOffTimestamp: Long = 0L
         private val _debugInfo = MutableStateFlow(ScreenDebugInfo())
@@ -325,7 +453,6 @@ class ScreenMonitorService : Service() {
         if (isScreenOn) {
             val currentAccumulated = accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
             checkScreenTimeRules(currentAccumulated)
-            // 重新调度下一次闹钟
             scheduleScreenTimeAlarm()
             updateDebugInfo()
         }

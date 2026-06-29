@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,7 +47,7 @@ import com.wink.eye.data.ScreenTimeUnit
 import java.util.UUID
 
 /** Debug 开关：允许亮屏时长/暗屏重置使用秒级单位，正式上线时设为 false */
-private const val DEBUG_SECONDS_ENABLED = false
+private const val DEBUG_SECONDS_ENABLED = true
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +56,7 @@ fun EditScreen(
     onSave: (Rule) -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(existingRule?.name ?: "护眼规则") }
     var ruleTypeIndex by remember { mutableStateOf(if (existingRule?.type is RuleType.ScreenTime) 1 else 0) }
 
@@ -66,13 +68,18 @@ fun EditScreen(
 
     // 亮屏时长设置
     val existingScreenTime = existingRule?.type as? RuleType.ScreenTime
-    var screenOnDuration by remember { mutableFloatStateOf(existingScreenTime?.screenOnDuration?.toFloat() ?: 30f) }
-    var screenOffResetDuration by remember { mutableFloatStateOf(existingScreenTime?.screenOffResetDuration?.toFloat() ?: 5f) }
+    var screenOnDuration by remember { mutableFloatStateOf(existingScreenTime?.effectiveScreenOnDuration?.toFloat() ?: 30f) }
+    var screenOffResetDuration by remember { mutableFloatStateOf(existingScreenTime?.effectiveScreenOffResetDuration?.toFloat() ?: 5f) }
     var screenOnUnit by remember { mutableStateOf(existingScreenTime?.screenOnUnit ?: ScreenTimeUnit.MINUTES) }
     var screenOffResetUnit by remember { mutableStateOf(existingScreenTime?.screenOffResetUnit ?: ScreenTimeUnit.MINUTES) }
     var reminderMode by remember { mutableStateOf(existingRule?.reminderMode ?: ReminderMode.NOTIFICATION) }
 
     val isEditing = existingRule != null
+
+    // #19 预设选中状态
+    val isPreset15 = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 15
+    val isPreset30 = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 30
+    val isPreset1h = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 60
 
     Scaffold(
         topBar = {
@@ -85,7 +92,7 @@ fun EditScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.edit_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -135,7 +142,6 @@ fun EditScreen(
 
             // 间隔时间设置
             if (ruleTypeIndex == 0) {
-                // 自定义间隔：每 X 分钟/秒
                 Text(
                     text = stringResource(R.string.edit_interval_custom_label),
                     style = MaterialTheme.typography.titleSmall
@@ -144,7 +150,7 @@ fun EditScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("每", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.interval_prefix), style = MaterialTheme.typography.bodyLarge)
                     OutlinedTextField(
                         value = intervalValueText,
                         onValueChange = { text ->
@@ -155,17 +161,16 @@ fun EditScreen(
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
-                    // 单位切换
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilterChip(
                             selected = intervalUnit == IntervalUnit.MINUTES,
                             onClick = { intervalUnit = IntervalUnit.MINUTES },
-                            label = { Text("分钟") }
+                            label = { Text(stringResource(R.string.unit_minutes)) }
                         )
                         FilterChip(
                             selected = intervalUnit == IntervalUnit.SECONDS,
                             onClick = { intervalUnit = IntervalUnit.SECONDS },
-                            label = { Text("秒") }
+                            label = { Text(stringResource(R.string.unit_seconds)) }
                         )
                     }
                 }
@@ -177,39 +182,34 @@ fun EditScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = false,
+                        selected = isPreset15,
                         onClick = {
-                            intervalValue = 15
-                            intervalValueText = "15"
-                            intervalUnit = IntervalUnit.MINUTES
+                            intervalValue = 15; intervalValueText = "15"; intervalUnit = IntervalUnit.MINUTES
                         },
-                        label = { Text("每 15 分钟") }
+                        label = { Text(stringResource(R.string.preset_15min)) }
                     )
                     FilterChip(
-                        selected = false,
+                        selected = isPreset30,
                         onClick = {
-                            intervalValue = 30
-                            intervalValueText = "30"
-                            intervalUnit = IntervalUnit.MINUTES
+                            intervalValue = 30; intervalValueText = "30"; intervalUnit = IntervalUnit.MINUTES
                         },
-                        label = { Text("每 30 分钟") }
+                        label = { Text(stringResource(R.string.preset_30min)) }
                     )
                     FilterChip(
-                        selected = false,
+                        selected = isPreset1h,
                         onClick = {
-                            intervalValue = 1
-                            intervalValueText = "1"
-                            intervalUnit = IntervalUnit.MINUTES
+                            intervalValue = 60; intervalValueText = "60"; intervalUnit = IntervalUnit.MINUTES
                         },
-                        label = { Text("每 1 小时") }
+                        label = { Text(stringResource(R.string.preset_1hour)) }
                     )
                 }
             }
 
             // 亮屏时长设置
             if (ruleTypeIndex == 1) {
-                val screenOnUnitLabel = if (screenOnUnit == ScreenTimeUnit.MINUTES) "分钟" else "秒"
-                val screenOffResetUnitLabel = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) "分钟" else "秒"
+                // #18 标签动态变化
+                val screenOnUnitLabel = if (screenOnUnit == ScreenTimeUnit.MINUTES) stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
+                val screenOffResetUnitLabel = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
 
                 Column {
                     Text(
@@ -220,25 +220,20 @@ fun EditScreen(
                         value = screenOnDuration,
                         onValueChange = { screenOnDuration = it },
                         valueRange = if (screenOnUnit == ScreenTimeUnit.MINUTES) 5f..120f else 5f..300f,
+                        steps = if (screenOnUnit == ScreenTimeUnit.MINUTES) 22 else 58,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (DEBUG_SECONDS_ENABLED) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             FilterChip(
                                 selected = screenOnUnit == ScreenTimeUnit.MINUTES,
-                                onClick = {
-                                    screenOnUnit = ScreenTimeUnit.MINUTES
-                                    screenOnDuration = 30f
-                                },
-                                label = { Text("分钟") }
+                                onClick = { screenOnUnit = ScreenTimeUnit.MINUTES; screenOnDuration = 30f },
+                                label = { Text(stringResource(R.string.unit_minutes)) }
                             )
                             FilterChip(
                                 selected = screenOnUnit == ScreenTimeUnit.SECONDS,
-                                onClick = {
-                                    screenOnUnit = ScreenTimeUnit.SECONDS
-                                    screenOnDuration = 30f
-                                },
-                                label = { Text("秒") }
+                                onClick = { screenOnUnit = ScreenTimeUnit.SECONDS; screenOnDuration = 30f },
+                                label = { Text(stringResource(R.string.unit_seconds)) }
                             )
                         }
                     }
@@ -253,25 +248,20 @@ fun EditScreen(
                         value = screenOffResetDuration,
                         onValueChange = { screenOffResetDuration = it },
                         valueRange = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) 1f..30f else 5f..300f,
+                        steps = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) 28 else 58,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (DEBUG_SECONDS_ENABLED) {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             FilterChip(
                                 selected = screenOffResetUnit == ScreenTimeUnit.MINUTES,
-                                onClick = {
-                                    screenOffResetUnit = ScreenTimeUnit.MINUTES
-                                    screenOffResetDuration = 5f
-                                },
-                                label = { Text("分钟") }
+                                onClick = { screenOffResetUnit = ScreenTimeUnit.MINUTES; screenOffResetDuration = 5f },
+                                label = { Text(stringResource(R.string.unit_minutes)) }
                             )
                             FilterChip(
                                 selected = screenOffResetUnit == ScreenTimeUnit.SECONDS,
-                                onClick = {
-                                    screenOffResetUnit = ScreenTimeUnit.SECONDS
-                                    screenOffResetDuration = 30f
-                                },
-                                label = { Text("秒") }
+                                onClick = { screenOffResetUnit = ScreenTimeUnit.SECONDS; screenOffResetDuration = 30f },
+                                label = { Text(stringResource(R.string.unit_seconds)) }
                             )
                         }
                     }
@@ -313,7 +303,7 @@ fun EditScreen(
                     }
                     val rule = Rule(
                         id = existingRule?.id ?: UUID.randomUUID().toString(),
-                        name = name.ifBlank { "护眼规则" },
+                        name = name.ifBlank { context.getString(R.string.default_rule_name) },
                         type = ruleType,
                         reminderMode = reminderMode,
                         enabled = existingRule?.enabled ?: true

@@ -1,19 +1,21 @@
 package com.wink.eye.ui.home
 
-import android.content.Context
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.wink.eye.WinkApp
 import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.Rule
-import com.wink.eye.data.RuleRepository
 import com.wink.eye.data.RuleType
 import com.wink.eye.service.IntervalAlarmScheduler
 import com.wink.eye.service.ScreenMonitorService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class HomeViewModel(private val repository: RuleRepository) : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository = WinkApp.instance.ruleRepository
+    private val appContext = application.applicationContext
 
     private val _rules = MutableStateFlow<List<Rule>>(emptyList())
     val rules: StateFlow<List<Rule>> = _rules
@@ -26,16 +28,16 @@ class HomeViewModel(private val repository: RuleRepository) : ViewModel() {
         _rules.value = repository.getAll()
     }
 
-    fun deleteRule(context: Context, id: String) {
+    fun deleteRule(id: String) {
         val rule = repository.getById(id)
         repository.delete(id)
         if (rule != null) {
-            syncServicesAfterChange(context)
+            syncServicesAfterChange()
         }
         loadRules()
     }
 
-    fun toggleEnabled(context: Context, rule: Rule) {
+    fun toggleEnabled(rule: Rule) {
         val updated = rule.copy(enabled = !rule.enabled)
         repository.save(updated)
         if (updated.enabled && updated.type is RuleType.Interval) {
@@ -43,32 +45,32 @@ class HomeViewModel(private val repository: RuleRepository) : ViewModel() {
                 IntervalUnit.SECONDS -> updated.type.value * 1000L
                 IntervalUnit.MINUTES -> updated.type.value * 60 * 1000L
             }
-            IntervalAlarmScheduler.schedule(context, updated.id, intervalMs)
+            IntervalAlarmScheduler.schedule(appContext, updated.id, intervalMs)
         }
-        syncServicesAfterChange(context)
+        syncServicesAfterChange()
         loadRules()
     }
 
-    private fun syncServicesAfterChange(context: Context) {
+    private fun syncServicesAfterChange() {
         val rules = repository.getAll()
 
         val hasScreenTimeRule = rules.any { it.enabled && it.type is RuleType.ScreenTime }
         if (hasScreenTimeRule) {
-            ScreenMonitorService.start(context)
+            ScreenMonitorService.start(appContext)
         } else {
-            ScreenMonitorService.stop(context)
+            ScreenMonitorService.stop(appContext)
         }
 
         rules.filter { !it.enabled && it.type is RuleType.Interval }.forEach {
-            IntervalAlarmScheduler.cancel(context, it.id)
+            IntervalAlarmScheduler.cancel(appContext, it.id)
         }
     }
 
     class Factory : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            val repository = WinkApp.instance.ruleRepository
-            return HomeViewModel(repository) as T
+        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+            val application = WinkApp.instance
+            return HomeViewModel(application) as T
         }
     }
 }

@@ -3,6 +3,7 @@ package com.wink.eye.service
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
@@ -21,10 +22,14 @@ object ReminderHelper {
     private const val ALARM_CHANNEL_ID = "wink_alarm"
     private const val TAG = "ReminderHelper"
 
+    // #14 懒加载 channels
+    @Volatile
+    private var channelsCreated = false
+
     fun triggerReminder(context: Context, rule: Rule) {
         Log.d(TAG, "触发提醒: ${rule.name}, 模式: ${rule.reminderMode}")
 
-        ensureChannels(context)
+        ensureChannelsIfNeeded(context)
 
         when (rule.reminderMode) {
             ReminderMode.ALARM -> triggerAlarm(context, rule)
@@ -121,6 +126,15 @@ object ReminderHelper {
         Log.d(TAG, "通知已发送，ID: $notificationId")
     }
 
+    private fun ensureChannelsIfNeeded(context: Context) {
+        if (channelsCreated) return
+        synchronized(this) {
+            if (channelsCreated) return
+            ensureChannels(context)
+            channelsCreated = true
+        }
+    }
+
     private fun ensureChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
 
@@ -143,13 +157,13 @@ object ReminderHelper {
         }
         manager.createNotificationChannel(reminderChannel)
 
-        // 闹钟提醒渠道（独立渠道，使用闹钟声音类型）
+        // #15 闹钟提醒渠道使用字符串资源
         val alarmChannel = NotificationChannel(
             ALARM_CHANNEL_ID,
-            "持续响铃提醒",
+            context.getString(R.string.alarm_channel_name),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "全屏闹钟提醒，使用闹钟声音"
+            description = context.getString(R.string.alarm_channel_desc)
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 500, 200, 500)
             setSound(
@@ -169,7 +183,7 @@ object ReminderHelper {
     const val EXTRA_NOTIFICATION_ID = "notification_id"
 }
 
-class DismissReceiver : android.content.BroadcastReceiver() {
+class DismissReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getIntExtra(ReminderHelper.EXTRA_NOTIFICATION_ID, 0)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -12,20 +12,43 @@
     <string name="rule_type_interval">定时提醒</string>
     <string name="rule_type_screen">亮屏时长</string>
 
+    <!-- Units -->
+    <string name="unit_minutes">分钟</string>
+    <string name="unit_seconds">秒</string>
+    <string name="unit_hours">小时</string>
+
+    <!-- Summary -->
+    <string name="summary_interval">每 %1$d %2$s</string>
+    <string name="summary_screen_time">亮屏%1$d%2$s / 暗屏重置%3$d%4$s</string>
+
     <!-- Edit -->
     <string name="edit_title_new">新增规则</string>
     <string name="edit_title_edit">编辑规则</string>
+    <string name="edit_back">返回</string>
     <string name="edit_name_label">规则名称</string>
     <string name="edit_name_hint">例如：每30分钟提醒</string>
     <string name="edit_type_label">规则类型</string>
     <string name="edit_interval_custom_label">自定义间隔</string>
     <string name="edit_interval_preset_label">快捷选项</string>
-    <string name="edit_screen_on_label">亮屏时长阈值（分钟）</string>
-    <string name="edit_screen_off_reset_label">暗屏重置时长（分钟）</string>
+    <string name="interval_prefix">每</string>
+    <string name="edit_screen_on_label">亮屏时长阈值</string>
+    <string name="edit_screen_off_reset_label">暗屏重置时长</string>
     <string name="edit_reminder_label">提醒方式</string>
     <string name="edit_reminder_alarm">持续响铃</string>
     <string name="edit_reminder_notification">消息弹窗</string>
     <string name="edit_save">保存</string>
+    <string name="default_rule_name">护眼规则</string>
+
+    <!-- Preset -->
+    <string name="preset_15min">每 15 分钟</string>
+    <string name="preset_30min">每 30 分钟</string>
+    <string name="preset_1hour">每 1 小时</string>
+
+    <!-- Dialog -->
+    <string name="dialog_delete_title">删除规则</string>
+    <string name="dialog_delete_message">确定要删除规则「%1$s」吗？</string>
+    <string name="dialog_delete_confirm">删除</string>
+    <string name="dialog_delete_cancel">取消</string>
 
     <!-- Reminder -->
     <string name="reminder_title">护眼提醒</string>
@@ -35,6 +58,8 @@
     <string name="reminder_channel_desc">定时护眼提醒通知</string>
     <string name="reminder_notification_title">护眼时间到</string>
     <string name="reminder_notification_text">该休息一下眼睛了！</string>
+    <string name="alarm_channel_name">持续响铃提醒</string>
+    <string name="alarm_channel_desc">全屏闹钟提醒，使用闹钟声音</string>
 
     <!-- Service -->
     <string name="service_notification_title">Wink 正在守护您的眼睛</string>
@@ -42,8 +67,11 @@
     <string name="service_channel_name">亮屏监测</string>
     <string name="service_channel_desc">前台服务通知</string>
 
+    <!-- Debug -->
+    <string name="debug_screen_on">已亮屏: %1$s</string>
+    <string name="debug_last_screen_off">上次暗屏: %1$s</string>
+
     <!-- Theme -->
     <string name="theme_light">亮色</string>
     <string name="theme_dark">暗色</string>
-    <string name="theme_system">跟随系统</string>
 </resources>
