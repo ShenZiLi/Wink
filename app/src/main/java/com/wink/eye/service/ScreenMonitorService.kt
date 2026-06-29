@@ -14,6 +14,13 @@ import com.wink.eye.R
 import com.wink.eye.WinkApp
 import com.wink.eye.data.RuleType
 import com.wink.eye.receiver.ScreenReceiver
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
+data class ScreenDebugInfo(
+    val accumulatedScreenOnMs: Long = 0L,
+    val lastScreenOffMs: Long = 0L
+)
 
 class ScreenMonitorService : Service() {
 
@@ -31,6 +38,7 @@ class ScreenMonitorService : Service() {
             if (isScreenOn) {
                 val currentAccumulated = accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
                 checkScreenTimeRules(currentAccumulated)
+                updateDebugInfo()
             }
             handler.postDelayed(this, checkIntervalMs)
         }
@@ -77,6 +85,7 @@ class ScreenMonitorService : Service() {
         val now = System.currentTimeMillis()
         if (!isScreenOn) {
             val offDuration = now - screenOffTime
+            lastScreenOffMs = offDuration
             // 检查所有亮屏时长规则，取最小重置时间
             val minResetMs = getMinScreenOffResetMs()
             if (minResetMs > 0 && offDuration >= minResetMs) {
@@ -85,6 +94,7 @@ class ScreenMonitorService : Service() {
             }
             isScreenOn = true
             screenOnTime = now
+            updateDebugInfo()
         }
     }
 
@@ -93,7 +103,20 @@ class ScreenMonitorService : Service() {
             accumulatedScreenOnMs += System.currentTimeMillis() - screenOnTime
             isScreenOn = false
             screenOffTime = System.currentTimeMillis()
+            updateDebugInfo()
         }
+    }
+
+    private fun updateDebugInfo() {
+        val currentOnMs = if (isScreenOn) {
+            accumulatedScreenOnMs + (System.currentTimeMillis() - screenOnTime)
+        } else {
+            accumulatedScreenOnMs
+        }
+        _debugInfo.value = ScreenDebugInfo(
+            accumulatedScreenOnMs = currentOnMs,
+            lastScreenOffMs = lastScreenOffMs
+        )
     }
 
     private fun checkScreenTimeRules(currentAccumulatedMs: Long) {
@@ -142,6 +165,10 @@ class ScreenMonitorService : Service() {
     companion object {
         private const val CHANNEL_ID = "wink_screen_monitor"
         private const val NOTIFICATION_ID = 1001
+
+        private var lastScreenOffMs: Long = 0L
+        private val _debugInfo = MutableStateFlow(ScreenDebugInfo())
+        val debugInfo: StateFlow<ScreenDebugInfo> = _debugInfo
 
         fun start(context: Context) {
             val intent = Intent(context, ScreenMonitorService::class.java)
