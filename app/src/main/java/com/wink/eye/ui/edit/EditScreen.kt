@@ -46,7 +46,7 @@ import com.wink.eye.data.ScreenTimeUnit
 import java.util.UUID
 
 /** Debug 开关：允许亮屏时长/暗屏重置使用秒级单位，正式上线时设为 false */
-private const val DEBUG_SECONDS_ENABLED = true
+private const val DEBUG_SECONDS_ENABLED = false
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
