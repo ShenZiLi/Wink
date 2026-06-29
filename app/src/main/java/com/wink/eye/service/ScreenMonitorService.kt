@@ -13,6 +13,7 @@ import android.os.Looper
 import com.wink.eye.R
 import com.wink.eye.WinkApp
 import com.wink.eye.data.RuleType
+import com.wink.eye.data.ScreenTimeUnit
 import com.wink.eye.receiver.ScreenReceiver
 
 class ScreenMonitorService : Service() {
@@ -100,7 +101,7 @@ class ScreenMonitorService : Service() {
         val rules = WinkApp.instance.ruleRepository.getAll()
         rules.filter { it.enabled && it.type is RuleType.ScreenTime }.forEach { rule ->
             val screenTimeType = rule.type as RuleType.ScreenTime
-            val thresholdMs = screenTimeType.screenOnMinutes * 60_000L
+            val thresholdMs = screenTimeType.screenOnDuration * if (screenTimeType.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
             if (currentAccumulatedMs >= thresholdMs) {
                 ReminderHelper.triggerReminder(this, rule)
                 // 触发后重置累计时间
@@ -114,7 +115,10 @@ class ScreenMonitorService : Service() {
         val rules = WinkApp.instance.ruleRepository.getAll()
         return rules
             .filter { it.enabled && it.type is RuleType.ScreenTime }
-            .minOfOrNull { (it.type as RuleType.ScreenTime).screenOffResetMinutes * 60_000L }
+            .minOfOrNull {
+                val st = it.type as RuleType.ScreenTime
+                st.screenOffResetDuration * if (st.screenOffResetUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
+            }
             ?: 0L
     }
 

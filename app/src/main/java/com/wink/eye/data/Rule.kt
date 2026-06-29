@@ -15,13 +15,21 @@ sealed class RuleType {
     @Serializable
     @SerialName("screen_time")
     data class ScreenTime(
-        val screenOnMinutes: Int,
-        val screenOffResetMinutes: Int
+        val screenOnDuration: Int,
+        val screenOffResetDuration: Int,
+        val screenOnUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES,
+        val screenOffResetUnit: ScreenTimeUnit = ScreenTimeUnit.MINUTES
     ) : RuleType()
 }
 
 @Serializable
 enum class IntervalUnit {
+    @SerialName("seconds") SECONDS,
+    @SerialName("minutes") MINUTES
+}
+
+@Serializable
+enum class ScreenTimeUnit {
     @SerialName("seconds") SECONDS,
     @SerialName("minutes") MINUTES
 }

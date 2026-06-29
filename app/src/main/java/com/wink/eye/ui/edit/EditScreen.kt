@@ -42,7 +42,11 @@ import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.ReminderMode
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleType
+import com.wink.eye.data.ScreenTimeUnit
 import java.util.UUID
+
+/** Debug 开关：允许亮屏时长/暗屏重置使用秒级单位，正式上线时设为 false */
+private const val DEBUG_SECONDS_ENABLED = true
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,8 +65,11 @@ fun EditScreen(
     var intervalUnit by remember { mutableStateOf(existingInterval?.unit ?: IntervalUnit.MINUTES) }
 
     // 亮屏时长设置
-    var screenOnMinutes by remember { mutableFloatStateOf((existingRule?.type as? RuleType.ScreenTime)?.screenOnMinutes?.toFloat() ?: 30f) }
-    var screenOffResetMinutes by remember { mutableFloatStateOf((existingRule?.type as? RuleType.ScreenTime)?.screenOffResetMinutes?.toFloat() ?: 5f) }
+    val existingScreenTime = existingRule?.type as? RuleType.ScreenTime
+    var screenOnDuration by remember { mutableFloatStateOf(existingScreenTime?.screenOnDuration?.toFloat() ?: 30f) }
+    var screenOffResetDuration by remember { mutableFloatStateOf(existingScreenTime?.screenOffResetDuration?.toFloat() ?: 5f) }
+    var screenOnUnit by remember { mutableStateOf(existingScreenTime?.screenOnUnit ?: ScreenTimeUnit.MINUTES) }
+    var screenOffResetUnit by remember { mutableStateOf(existingScreenTime?.screenOffResetUnit ?: ScreenTimeUnit.MINUTES) }
     var reminderMode by remember { mutableStateOf(existingRule?.reminderMode ?: ReminderMode.NOTIFICATION) }
 
     val isEditing = existingRule != null
@@ -201,32 +208,73 @@ fun EditScreen(
 
             // 亮屏时长设置
             if (ruleTypeIndex == 1) {
+                val screenOnUnitLabel = if (screenOnUnit == ScreenTimeUnit.MINUTES) "分钟" else "秒"
+                val screenOffResetUnitLabel = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) "分钟" else "秒"
+
                 Column {
                     Text(
-                        text = "${stringResource(R.string.edit_screen_on_label)}: ${screenOnMinutes.toInt()} 分钟",
+                        text = "${stringResource(R.string.edit_screen_on_label)}: ${screenOnDuration.toInt()} $screenOnUnitLabel",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Slider(
-                        value = screenOnMinutes,
-                        onValueChange = { screenOnMinutes = it },
-                        valueRange = 5f..120f,
-                        steps = 22,
+                        value = screenOnDuration,
+                        onValueChange = { screenOnDuration = it },
+                        valueRange = if (screenOnUnit == ScreenTimeUnit.MINUTES) 5f..120f else 5f..300f,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (DEBUG_SECONDS_ENABLED) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            FilterChip(
+                                selected = screenOnUnit == ScreenTimeUnit.MINUTES,
+                                onClick = {
+                                    screenOnUnit = ScreenTimeUnit.MINUTES
+                                    screenOnDuration = 30f
+                                },
+                                label = { Text("分钟") }
+                            )
+                            FilterChip(
+                                selected = screenOnUnit == ScreenTimeUnit.SECONDS,
+                                onClick = {
+                                    screenOnUnit = ScreenTimeUnit.SECONDS
+                                    screenOnDuration = 30f
+                                },
+                                label = { Text("秒") }
+                            )
+                        }
+                    }
                 }
 
                 Column {
                     Text(
-                        text = "${stringResource(R.string.edit_screen_off_reset_label)}: ${screenOffResetMinutes.toInt()} 分钟",
+                        text = "${stringResource(R.string.edit_screen_off_reset_label)}: ${screenOffResetDuration.toInt()} $screenOffResetUnitLabel",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Slider(
-                        value = screenOffResetMinutes,
-                        onValueChange = { screenOffResetMinutes = it },
-                        valueRange = 1f..30f,
-                        steps = 28,
+                        value = screenOffResetDuration,
+                        onValueChange = { screenOffResetDuration = it },
+                        valueRange = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) 1f..30f else 5f..300f,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (DEBUG_SECONDS_ENABLED) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            FilterChip(
+                                selected = screenOffResetUnit == ScreenTimeUnit.MINUTES,
+                                onClick = {
+                                    screenOffResetUnit = ScreenTimeUnit.MINUTES
+                                    screenOffResetDuration = 5f
+                                },
+                                label = { Text("分钟") }
+                            )
+                            FilterChip(
+                                selected = screenOffResetUnit == ScreenTimeUnit.SECONDS,
+                                onClick = {
+                                    screenOffResetUnit = ScreenTimeUnit.SECONDS
+                                    screenOffResetDuration = 30f
+                                },
+                                label = { Text("秒") }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -257,8 +305,10 @@ fun EditScreen(
                         RuleType.Interval(value = intervalValue, unit = intervalUnit)
                     } else {
                         RuleType.ScreenTime(
-                            screenOnMinutes = screenOnMinutes.toInt(),
-                            screenOffResetMinutes = screenOffResetMinutes.toInt()
+                            screenOnDuration = screenOnDuration.toInt(),
+                            screenOffResetDuration = screenOffResetDuration.toInt(),
+                            screenOnUnit = screenOnUnit,
+                            screenOffResetUnit = screenOffResetUnit
                         )
                     }
                     val rule = Rule(

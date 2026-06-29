@@ -207,6 +207,10 @@ private fun ruleSummary(rule: Rule): String {
             }
             "每 ${rule.type.value} $unitLabel"
         }
-        is RuleType.ScreenTime -> "亮屏${rule.type.screenOnMinutes}分钟 / 暗屏重置${rule.type.screenOffResetMinutes}分钟"
+        is RuleType.ScreenTime -> {
+            val onUnitLabel = if (rule.type.screenOnUnit == com.wink.eye.data.ScreenTimeUnit.MINUTES) "分钟" else "秒"
+            val offUnitLabel = if (rule.type.screenOffResetUnit == com.wink.eye.data.ScreenTimeUnit.MINUTES) "分钟" else "秒"
+            "亮屏${rule.type.screenOnDuration}$onUnitLabel / 暗屏重置${rule.type.screenOffResetDuration}$offUnitLabel"
+        }
     }
 }
