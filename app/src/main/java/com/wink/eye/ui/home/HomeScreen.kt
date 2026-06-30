@@ -32,8 +32,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,14 +71,6 @@ fun HomeScreen(
     val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
     val hasScreenTimeRule = rules.any { it.type is RuleType.ScreenTime }
 
-    // #5 实时刷新 tick
-    var tick by remember { mutableStateOf(0L) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            delay(5000)
-            tick++
-        }
-    }
     val debugInfo by ScreenMonitorService.debugInfo.collectAsState()
 
     // #17 删除确认弹窗
@@ -160,7 +154,7 @@ fun HomeScreen(
                 }
 
                 if (hasScreenTimeRule) {
-                    DebugInfoPanel(debugInfo, tick)
+                    DebugInfoPanel(debugInfo)
                 }
             }
         }
@@ -284,9 +278,19 @@ private fun formatTimestamp(ts: Long): String {
 }
 
 @Composable
-private fun DebugInfoPanel(debugInfo: ScreenDebugInfo, @Suppress("UNUSED_PARAMETER") tick: Long) {
+private fun DebugInfoPanel(debugInfo: ScreenDebugInfo) {
+    // 内部自驱动：每秒更新 now，now 是 Compose state，变化必然触发重组
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            now = System.currentTimeMillis()
+        }
+    }
+
+    // now 直接参与计算，Compose 检测到 now 变化会重组此组件
     val currentScreenOnMs = if (debugInfo.isScreenOn && debugInfo.screenOnStartMs > 0) {
-        debugInfo.accumulatedScreenOnMs + (System.currentTimeMillis() - debugInfo.screenOnStartMs)
+        debugInfo.accumulatedScreenOnMs + (now - debugInfo.screenOnStartMs)
     } else {
         debugInfo.accumulatedScreenOnMs
     }
