@@ -70,6 +70,8 @@
     <!-- Debug -->
     <string name="debug_screen_on">已亮屏: %1$s</string>
     <string name="debug_last_screen_off">上次暗屏: %1$s</string>
+    <string name="debug_screen_on_label">已亮屏</string>
+    <string name="debug_last_screen_off_label">上次暗屏</string>
 
     <!-- Theme -->
     <string name="theme_light">亮色</string>

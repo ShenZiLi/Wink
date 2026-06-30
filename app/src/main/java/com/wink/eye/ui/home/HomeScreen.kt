@@ -295,20 +295,65 @@ private fun DebugInfoPanel(debugInfo: ScreenDebugInfo) {
         debugInfo.accumulatedScreenOnMs
     }
 
-    Column(
+    val totalSeconds = currentScreenOnMs / 1000
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        ),
+        shape = MaterialTheme.shapes.medium
     ) {
-        Text(
-            text = stringResource(R.string.debug_screen_on, formatDuration(currentScreenOnMs)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = stringResource(R.string.debug_last_screen_off, formatTimestamp(debugInfo.lastScreenOffTimestamp)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // 已亮屏
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = if (hours > 0) String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                           else String.format("%02d:%02d", minutes, seconds),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (debugInfo.isScreenOn) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.debug_screen_on_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 分隔线
+            androidx.compose.material3.VerticalDivider(
+                modifier = Modifier.height(48.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            // 上次暗屏
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = formatTimestamp(debugInfo.lastScreenOffTimestamp),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.debug_last_screen_off_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
