@@ -1,6 +1,7 @@
 package com.wink.eye.service
 
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import android.view.Display
 import com.wink.eye.R
@@ -105,6 +107,7 @@ class ScreenMonitorService : Service() {
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
+                addAction(Intent.ACTION_USER_PRESENT)
             }
             registerReceiver(it, filter)
         }
@@ -115,7 +118,14 @@ class ScreenMonitorService : Service() {
         // #6 查询实际屏幕状态（避免重启后状态不准）
         isScreenOn = isScreenCurrentlyOn().also { actualScreenOn ->
             if (actualScreenOn) {
-                screenOnTime = System.currentTimeMillis()
+                // 屏幕亮起但锁屏状态下不计亮屏时长，等用户解锁后再开始
+                if (isDeviceLocked()) {
+                    isScreenOn = false
+                    screenOffTime = System.currentTimeMillis()
+                    lastScreenOffTimestamp = screenOffTime
+                } else {
+                    screenOnTime = System.currentTimeMillis()
+                }
             } else {
                 screenOffTime = System.currentTimeMillis()
                 lastScreenOffTimestamp = screenOffTime
@@ -167,6 +177,20 @@ class ScreenMonitorService : Service() {
     }
 
     fun handleScreenOn() {
+        // 屏幕亮起但设备处于锁屏状态，等待用户解锁后再开始计时
+        if (isDeviceLocked()) {
+            Log.d(TAG, "屏幕亮起但设备锁屏，等待解锁后开始计时")
+            return
+        }
+        resumeScreenOnIfNeeded()
+    }
+
+    fun handleUserPresent() {
+        // 用户解锁，若屏幕仍亮着则开始（恢复）亮屏计时
+        resumeScreenOnIfNeeded()
+    }
+
+    private fun resumeScreenOnIfNeeded() {
         val now = System.currentTimeMillis()
         if (!isScreenOn) {
             val offDuration = now - screenOffTime
@@ -310,15 +334,21 @@ class ScreenMonitorService : Service() {
     private fun checkScreenTimeRules(currentAccumulatedMs: Long) {
         val rules = WinkApp.instance.ruleRepository.getAll()
         val triggeredRules = mutableListOf<com.wink.eye.data.Rule>()
-        var minThresholdMs = Long.MAX_VALUE
 
         rules.filter { it.enabled && it.type is RuleType.ScreenTime }.forEach { rule ->
             val screenTimeType = rule.type as RuleType.ScreenTime
             val thresholdMs = screenTimeType.effectiveScreenOnDuration * if (screenTimeType.screenOnUnit == ScreenTimeUnit.MINUTES) 60_000L else 1_000L
             if (currentAccumulatedMs >= thresholdMs) {
                 triggeredRules.add(rule)
-                minThresholdMs = minOf(minThresholdMs, thresholdMs)
             }
+        }
+
+        if (triggeredRules.isEmpty()) return
+
+        // 锁屏或息屏状态下不触发提醒，且不重置累计时长（待用户解锁后再触发）
+        if (isScreenOffOrLocked()) {
+            Log.d(TAG, "锁屏或息屏状态，跳过提醒与累计重置")
+            return
         }
 
         // 统一触发所有匹配的规则
@@ -327,10 +357,8 @@ class ScreenMonitorService : Service() {
         }
 
         // 全部触发后重置一次
-        if (triggeredRules.isNotEmpty()) {
-            accumulatedScreenOnMs = 0L
-            screenOnTime = System.currentTimeMillis()
-        }
+        accumulatedScreenOnMs = 0L
+        screenOnTime = System.currentTimeMillis()
     }
 
     private fun getMinScreenOnThresholdMs(): Long {
@@ -367,6 +395,19 @@ class ScreenMonitorService : Service() {
     private fun isScreenCurrentlyOn(): Boolean {
         val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         return displayManager.displays.any { it.state != Display.STATE_OFF }
+    }
+
+    // 设备是否处于锁屏状态（含锁屏界面可见但屏幕仍亮）
+    private fun isDeviceLocked(): Boolean {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        return keyguardManager?.isKeyguardLocked == true
+    }
+
+    // 屏幕息屏或设备锁屏时，不允许提醒
+    private fun isScreenOffOrLocked(): Boolean {
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isInteractive != true) return true
+        return isDeviceLocked()
     }
 
     private fun createNotificationChannel() {
@@ -435,8 +476,16 @@ class ScreenMonitorService : Service() {
             context.startService(intent)
         }
 
+        fun startUserPresent(context: Context) {
+            val intent = Intent(context, ScreenMonitorService::class.java).apply {
+                action = ACTION_USER_PRESENT
+            }
+            context.startService(intent)
+        }
+
         const val ACTION_SCREEN_ON = "com.wink.eye.SCREEN_ON"
         const val ACTION_SCREEN_OFF = "com.wink.eye.SCREEN_OFF"
+        const val ACTION_USER_PRESENT = "com.wink.eye.USER_PRESENT"
         const val ACTION_CHECK_SCREEN_TIME = "com.wink.eye.CHECK_SCREEN_TIME"
     }
 
@@ -444,6 +493,7 @@ class ScreenMonitorService : Service() {
         when (intent?.action) {
             ACTION_SCREEN_ON -> handleScreenOn()
             ACTION_SCREEN_OFF -> handleScreenOff()
+            ACTION_USER_PRESENT -> handleUserPresent()
             ACTION_CHECK_SCREEN_TIME -> handleCheckScreenTime()
         }
         return START_STICKY

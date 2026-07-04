@@ -14,6 +14,9 @@ class ScreenReceiver : BroadcastReceiver() {
             Intent.ACTION_SCREEN_OFF -> {
                 ScreenMonitorService.startScreenOff(context)
             }
+            Intent.ACTION_USER_PRESENT -> {
+                ScreenMonitorService.startUserPresent(context)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.wink.eye.service
 
+import android.app.KeyguardManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.wink.eye.MainActivity
@@ -27,6 +29,12 @@ object ReminderHelper {
     private var channelsCreated = false
 
     fun triggerReminder(context: Context, rule: Rule) {
+        // 锁屏或息屏状态下不允许提醒
+        if (isScreenOffOrLocked(context)) {
+            Log.d(TAG, "锁屏或息屏状态，跳过提醒: ${rule.name}")
+            return
+        }
+
         Log.d(TAG, "触发提醒: ${rule.name}, 模式: ${rule.reminderMode}")
 
         ensureChannelsIfNeeded(context)
@@ -35,6 +43,14 @@ object ReminderHelper {
             ReminderMode.ALARM -> triggerAlarm(context, rule)
             ReminderMode.NOTIFICATION -> triggerNotification(context, rule)
         }
+    }
+
+    // 屏幕息屏或设备锁屏时不允许提醒（覆盖亮屏时长触发与定时触发两条路径）
+    private fun isScreenOffOrLocked(context: Context): Boolean {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        if (powerManager?.isInteractive != true) return true
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        return keyguardManager?.isKeyguardLocked == true
     }
 
     private fun triggerAlarm(context: Context, rule: Rule) {
