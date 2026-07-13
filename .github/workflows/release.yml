@@ -53,9 +53,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Wink v${{ github.ref_name }}"
+          name: "Wink ${{ github.ref_name }}"
           body: |
-            ## Wink v${{ github.ref_name }}
+            ## Wink ${{ github.ref_name }}
 
             亮屏计时 & 用眼提醒助手。
 
