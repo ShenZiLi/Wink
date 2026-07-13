@@ -9,4 +9,4 @@
 .externalNativeBuild
 .cxx
 local.properties
-*.hprof
+*.hprofapp/*-keystore.jks
