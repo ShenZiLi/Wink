@@ -33,6 +33,14 @@ class ReminderActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 防御性 guard：仅 ALARM 模式应到达此处（带 EXTRA_RULE_ID）。
+        // NOTIFICATION 模式已不再使用 fullScreenIntent，任何缺 ruleId 的启动都视为异常，直接退出。
+        val ruleId = intent.getStringExtra(ReminderHelper.EXTRA_RULE_ID)
+        if (ruleId.isNullOrEmpty()) {
+            finish()
+            return
+        }
+
         // 锁屏上显示
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or

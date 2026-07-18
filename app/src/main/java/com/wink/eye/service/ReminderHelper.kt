@@ -100,18 +100,6 @@ object ReminderHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val fullScreenIntent = Intent(context, ReminderActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_RULE_ID, rule.id)
-            putExtra(EXTRA_RULE_NAME, rule.name)
-        }
-        val fullScreenPendingIntent = PendingIntent.getActivity(
-            context,
-            rule.id.hashCode(),
-            fullScreenIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
         val dismissIntent = Intent(context, DismissReceiver::class.java).apply {
             putExtra(EXTRA_NOTIFICATION_ID, rule.id.hashCode())
         }
@@ -126,12 +114,12 @@ object ReminderHelper {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(context.getString(R.string.reminder_notification_title))
             .setContentText(context.getString(R.string.reminder_notification_text))
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(true)
             .setContentIntent(contentPendingIntent)
             .setDeleteIntent(dismissPendingIntent)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .setVibrate(longArrayOf(0, 500, 200, 500))
             .build()
