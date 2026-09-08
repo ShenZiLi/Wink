@@ -166,14 +166,13 @@ private val WinkTypography = Typography(
 fun WinkTheme(content: @Composable () -> Unit) {
     val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
 
-    val darkTheme = themeMode == ThemeMode.DARK
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
-    // Crossfade 整体过渡：整个 UI 同时切换，消除不同组件动效不同步导致的残影
+    // Crossfade 整体过渡：colorScheme 必须放在 lambda 内部，每个状态使用自己的颜色方案
     Crossfade(
-        targetState = darkTheme,
+        targetState = themeMode,
         animationSpec = tween(300)
-    ) { _ ->
+    ) { mode ->
+        val darkTheme = mode == ThemeMode.DARK
+        val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
         MaterialTheme(
             colorScheme = colorScheme,
             typography = WinkTypography,
