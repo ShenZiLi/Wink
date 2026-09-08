@@ -152,7 +152,7 @@ fun WinkNavHost(repository: RuleRepository) {
             navController = navController,
             startDestination = "home",
             modifier = Modifier.padding(innerPadding),
-            // 全局默认：编辑页进入/返回均淡入淡出；tab 页水平滑动由 composable 覆盖
+            // 全局默认：编辑页进入/返回均淡入淡出；tab 路由覆盖 exitTransition 处理非 tab 路由
             enterTransition = { fadeIn(tween(300)) },
             exitTransition = { fadeOut(tween(250)) },
             popEnterTransition = { fadeIn(tween(300)) },
@@ -172,7 +172,10 @@ fun WinkNavHost(repository: RuleRepository) {
             exitTransition = {
                 val targetIdx = routeOrder.indexOf(targetState.destination.route)
                 val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx > initialIdx) {
+                if (targetIdx == -1) {
+                    // 非 tab 路由（编辑页）→ 淡出
+                    fadeOut(tween(250))
+                } else if (targetIdx > initialIdx) {
                     slideOutHorizontally { width -> -width } + fadeOut(tween(250))
                 } else {
                     slideOutHorizontally { width -> width } + fadeOut(tween(250))
@@ -232,7 +235,10 @@ fun WinkNavHost(repository: RuleRepository) {
             exitTransition = {
                 val targetIdx = routeOrder.indexOf(targetState.destination.route)
                 val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx > initialIdx) {
+                if (targetIdx == -1) {
+                    // 非 tab 路由（编辑页）→ 淡出
+                    fadeOut(tween(250))
+                } else if (targetIdx > initialIdx) {
                     slideOutHorizontally { width -> -width } + fadeOut(tween(250))
                 } else {
                     slideOutHorizontally { width -> width } + fadeOut(tween(250))
