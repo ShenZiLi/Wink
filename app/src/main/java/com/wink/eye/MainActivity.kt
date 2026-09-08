@@ -15,21 +15,26 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import com.compose.liquidglassnav.LiquidGlassBottomNavBar
+import com.compose.liquidglassnav.NavItem
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -112,122 +117,137 @@ fun WinkNavHost(repository: RuleRepository) {
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute == "home" || currentRoute == "earclock"
 
-    Scaffold(
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = currentRoute == "home",
-                        onClick = {
-                            navController.navigate("home") {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
-                        label = { Text(stringResource(R.string.app_name)) }
+    val navItems = remember {
+        listOf(
+            NavItem(
+                icon = Icons.Outlined.Visibility,
+                activeIcon = Icons.Filled.Visibility,
+                label = "Wink",
+                route = "home"
+            ),
+            NavItem(
+                icon = Icons.Outlined.Headphones,
+                activeIcon = Icons.Filled.Headphones,
+                label = "EarClock",
+                route = "earclock"
+            )
+        )
+    }
+
+    val selectedIndex = when (currentRoute) {
+        "home" -> 0
+        "earclock" -> 1
+        else -> 0
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = "home",
+                modifier = Modifier.padding(innerPadding),
+                enterTransition = { fadeIn(tween(300)) },
+                exitTransition = { fadeOut(tween(250)) },
+                popEnterTransition = { fadeIn(tween(300)) },
+                popExitTransition = { fadeOut(tween(250)) }
+            ) {
+                composable("home") {
+                    LaunchedEffect(Unit) { homeViewModel.loadRules() }
+                    HomeScreen(
+                        onAddRule = { navController.navigate("edit/new") },
+                        onEditRule = { id -> navController.navigate("edit/$id") },
+                        viewModel = homeViewModel
                     )
-                    NavigationBarItem(
-                        selected = currentRoute == "earclock",
-                        onClick = {
-                            navController.navigate("earclock") {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                }
+                composable("edit/new") {
+                    EditScreen(
+                        existingRule = null,
+                        onSave = { rule ->
+                            repository.save(rule)
+                            onRuleSaved(context, rule)
+                            homeViewModel.loadRules()
+                            navController.popBackStack()
                         },
-                        icon = { Icon(Icons.Default.Headphones, contentDescription = null) },
-                        label = { Text(stringResource(R.string.earclock_home_title)) }
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("edit/{ruleId}") { backStackEntry ->
+                    val ruleId = backStackEntry.arguments?.getString("ruleId") ?: return@composable
+                    val rule = repository.getById(ruleId)
+                    EditScreen(
+                        existingRule = rule,
+                        onSave = { updatedRule ->
+                            repository.save(updatedRule)
+                            onRuleSaved(context, updatedRule)
+                            homeViewModel.loadRules()
+                            navController.popBackStack()
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("earclock") {
+                    LaunchedEffect(Unit) { earClockViewModel.loadAlarms() }
+                    EarClockHomeScreen(
+                        onAddAlarm = { navController.navigate("earclock/edit/new") },
+                        onEditAlarm = { alarmId -> navController.navigate("earclock/edit/$alarmId") },
+                        viewModel = earClockViewModel
+                    )
+                }
+                composable("earclock/edit/new") {
+                    EarClockEditScreen(
+                        existingAlarm = null,
+                        onSave = { alarm ->
+                            earClockViewModel.saveAlarm(alarm)
+                            navController.popBackStack()
+                        },
+                        onCancel = { navController.popBackStack() }
+                    )
+                }
+                composable("earclock/edit/{alarmId}") { backStackEntry ->
+                    val alarmId = backStackEntry.arguments?.getString("alarmId") ?: return@composable
+                    val alarm = earClockRepository.getById(alarmId)
+                    EarClockEditScreen(
+                        existingAlarm = alarm,
+                        onSave = { updatedAlarm ->
+                            earClockViewModel.saveAlarm(updatedAlarm)
+                            navController.popBackStack()
+                        },
+                        onCancel = { navController.popBackStack() }
                     )
                 }
             }
         }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = "home",
-            modifier = Modifier.padding(innerPadding),
-            // 所有路由统一淡入淡出，无任何自定义过渡
-            enterTransition = { fadeIn(tween(300)) },
-            exitTransition = { fadeOut(tween(250)) },
-            popEnterTransition = { fadeIn(tween(300)) },
-            popExitTransition = { fadeOut(tween(250)) }
-        ) {
-        composable("home") {
-            // 每次进入首页时重新加载规则
-            LaunchedEffect(Unit) {
-                homeViewModel.loadRules()
+
+        // 悬浮液态玻璃底部导航栏
+        if (showBottomBar) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+            ) {
+                LiquidGlassBottomNavBar(
+                    items = navItems,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { index ->
+                        val route = navItems[index].route
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    selectedColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    activeColor = MaterialTheme.colorScheme.primary,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    barHeight = 70.dp,
+                    cornerRadius = 30.dp,
+                    showBorder = true
+                )
             }
-            HomeScreen(
-                onAddRule = { navController.navigate("edit/new") },
-                onEditRule = { id -> navController.navigate("edit/$id") },
-                viewModel = homeViewModel
-            )
-        }
-
-        composable("edit/new") {
-            EditScreen(
-                existingRule = null,
-                onSave = { rule ->
-                    repository.save(rule)
-                    onRuleSaved(context, rule)
-                    homeViewModel.loadRules()
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable("edit/{ruleId}") { backStackEntry ->
-            val ruleId = backStackEntry.arguments?.getString("ruleId") ?: return@composable Unit
-            val rule = repository.getById(ruleId)
-            EditScreen(
-                existingRule = rule,
-                onSave = { updatedRule ->
-                    repository.save(updatedRule)
-                    onRuleSaved(context, updatedRule)
-                    homeViewModel.loadRules()
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable("earclock") {
-            LaunchedEffect(Unit) {
-                earClockViewModel.loadAlarms()
-            }
-            EarClockHomeScreen(
-                onAddAlarm = { navController.navigate("earclock/edit/new") },
-                onEditAlarm = { alarmId -> navController.navigate("earclock/edit/$alarmId") },
-                viewModel = earClockViewModel
-            )
-        }
-
-        composable("earclock/edit/new") {
-            EarClockEditScreen(
-                existingAlarm = null,
-                onSave = { alarm ->
-                    earClockViewModel.saveAlarm(alarm)
-                    navController.popBackStack()
-                },
-                onCancel = { navController.popBackStack() }
-            )
-        }
-
-        composable("earclock/edit/{alarmId}") { backStackEntry ->
-            val alarmId = backStackEntry.arguments?.getString("alarmId") ?: return@composable Unit
-            val alarm = earClockRepository.getById(alarmId)
-            EarClockEditScreen(
-                existingAlarm = alarm,
-                onSave = { updatedAlarm ->
-                    earClockViewModel.saveAlarm(updatedAlarm)
-                    navController.popBackStack()
-                },
-                onCancel = { navController.popBackStack() }
-            )
-        }
         }
     }
 }
