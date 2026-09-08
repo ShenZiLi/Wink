@@ -14,8 +14,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -114,8 +112,6 @@ fun WinkNavHost(repository: RuleRepository) {
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute == "home" || currentRoute == "earclock"
 
-    val routeOrder = listOf("home", "earclock")
-
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
@@ -152,36 +148,13 @@ fun WinkNavHost(repository: RuleRepository) {
             navController = navController,
             startDestination = "home",
             modifier = Modifier.padding(innerPadding),
-            // 全局默认：编辑页进入/返回均淡入淡出；tab 路由覆盖 exitTransition 处理非 tab 路由
+            // 所有路由统一淡入淡出，无任何自定义过渡
             enterTransition = { fadeIn(tween(300)) },
             exitTransition = { fadeOut(tween(250)) },
             popEnterTransition = { fadeIn(tween(300)) },
             popExitTransition = { fadeOut(tween(250)) }
         ) {
-        composable(
-            "home",
-            enterTransition = {
-                val targetIdx = routeOrder.indexOf(targetState.destination.route)
-                val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx > initialIdx) {
-                    slideInHorizontally { width -> width } + fadeIn(tween(300))
-                } else {
-                    slideInHorizontally { width -> -width } + fadeIn(tween(300))
-                }
-            },
-            exitTransition = {
-                val targetIdx = routeOrder.indexOf(targetState.destination.route)
-                val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx == -1) {
-                    // 非 tab 路由（编辑页）→ 淡出
-                    fadeOut(tween(250))
-                } else if (targetIdx > initialIdx) {
-                    slideOutHorizontally { width -> -width } + fadeOut(tween(250))
-                } else {
-                    slideOutHorizontally { width -> width } + fadeOut(tween(250))
-                }
-            }
-        ) {
+        composable("home") {
             // 每次进入首页时重新加载规则
             LaunchedEffect(Unit) {
                 homeViewModel.loadRules()
@@ -221,30 +194,7 @@ fun WinkNavHost(repository: RuleRepository) {
             )
         }
 
-        composable(
-            "earclock",
-            enterTransition = {
-                val targetIdx = routeOrder.indexOf(targetState.destination.route)
-                val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx > initialIdx) {
-                    slideInHorizontally { width -> width } + fadeIn(tween(300))
-                } else {
-                    slideInHorizontally { width -> -width } + fadeIn(tween(300))
-                }
-            },
-            exitTransition = {
-                val targetIdx = routeOrder.indexOf(targetState.destination.route)
-                val initialIdx = routeOrder.indexOf(initialState.destination.route)
-                if (targetIdx == -1) {
-                    // 非 tab 路由（编辑页）→ 淡出
-                    fadeOut(tween(250))
-                } else if (targetIdx > initialIdx) {
-                    slideOutHorizontally { width -> -width } + fadeOut(tween(250))
-                } else {
-                    slideOutHorizontally { width -> width } + fadeOut(tween(250))
-                }
-            }
-        ) {
+        composable("earclock") {
             LaunchedEffect(Unit) {
                 earClockViewModel.loadAlarms()
             }
