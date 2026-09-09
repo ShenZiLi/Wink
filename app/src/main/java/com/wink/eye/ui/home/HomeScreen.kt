@@ -159,7 +159,10 @@ fun HomeScreen(
                 }
 
                 if (hasScreenTimeRule) {
-                    DebugInfoPanel(debugInfo)
+                    // 底部留出悬浮液态玻璃菜单栏高度，避免遮挡"已亮屏/上次暗屏"面板
+                    Box(Modifier.padding(bottom = 116.dp)) {
+                        DebugInfoPanel(debugInfo)
+                    }
                 }
             }
         }
