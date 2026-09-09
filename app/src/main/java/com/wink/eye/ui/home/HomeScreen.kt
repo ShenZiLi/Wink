@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,6 +56,7 @@ import com.wink.eye.service.ScreenDebugInfo
 import com.wink.eye.service.ScreenMonitorService
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.ThemeMode
+import com.wink.eye.ui.theme.WinkLayoutOverlay
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -142,7 +144,8 @@ fun HomeScreen(
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = WinkLayoutOverlay.BottomBarOverlayHeight)
                 ) {
                     item { Spacer(Modifier.height(8.dp)) }
                     items(rules, key = { it.id }) { rule ->
@@ -160,7 +163,7 @@ fun HomeScreen(
 
                 if (hasScreenTimeRule) {
                     // 底部留出悬浮液态玻璃菜单栏高度，避免遮挡"已亮屏/上次暗屏"面板
-                    Box(Modifier.padding(bottom = 116.dp)) {
+                    Box(Modifier.padding(bottom = WinkLayoutOverlay.BottomBarOverlayHeight)) {
                         DebugInfoPanel(debugInfo)
                     }
                 }

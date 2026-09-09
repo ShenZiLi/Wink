@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +51,7 @@ import com.wink.eye.data.EarClockAlarm
 import com.wink.eye.data.EarClockFrequency
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.ThemeMode
+import com.wink.eye.ui.theme.WinkLayoutOverlay
 import java.util.Calendar
 import java.util.Locale
 
@@ -128,7 +130,9 @@ fun EarClockHomeScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                // 底部预留悬浮菜单栏高度，与 Wink 页列表底部对齐，切换不跳动
+                contentPadding = PaddingValues(bottom = WinkLayoutOverlay.BottomBarOverlayHeight)
             ) {
                 item { Spacer(Modifier.height(8.dp)) }
                 items(alarms, key = { it.id }) { alarm ->

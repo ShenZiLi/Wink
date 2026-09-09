@@ -190,3 +190,15 @@ private val WinkShapes = Shapes(
     large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp)
 )
+
+/**
+ * 布局尺寸常量。object 成员便于跨包引用。
+ */
+object WinkLayoutOverlay {
+    /**
+     * 底部悬浮液态玻璃菜单栏在内容区预留的遮挡高度
+     * （玻璃条 70 + 上下内边距 24 + 悬浮留白 12 + 额外间距 ≈ 116）。
+     * 各页面底部留白统一引用此常量，保证切换时列表底部对齐一致。
+     */
+    val BottomBarOverlayHeight = 116.dp
+}
