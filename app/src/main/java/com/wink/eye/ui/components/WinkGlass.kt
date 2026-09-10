@@ -87,10 +87,11 @@ fun winkGlassStyle(
         WinkGlassVariant.Clear -> if (isDark) 0.10f else 0.14f
     }.coerceIn(0f, 1f) + tintBoost
 
-    // 高光染色：亮色主题用白提亮，暗色主题用极淡的白色避免发灰
+    // 高光染色：亮色主题用白提亮；暗色主题必须压到极低，
+    // 否则在这种「表面色 == 背景色」的深色主题下，玻璃会比背景亮出一整档、显得像贴了块板
     val sheenAlpha = when (variant) {
-        WinkGlassVariant.Regular -> if (isDark) 0.05f else 0.16f
-        WinkGlassVariant.Clear -> if (isDark) 0.03f else 0.08f
+        WinkGlassVariant.Regular -> if (isDark) 0.015f else 0.16f
+        WinkGlassVariant.Clear -> if (isDark) 0.008f else 0.08f
     }
 
     return HazeStyle(
@@ -137,7 +138,9 @@ fun Modifier.winkGlassSurface(
         )
 
     if (drawHighlight) {
-        modifier = modifier.glassHighlight(shape)
+        // 暗色主题下白色高光非常扎眼，压到 30% 只保留一道可辨识的轮廓
+        val highlightStrength = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) 0.3f else 1f
+        modifier = modifier.glassHighlight(shape, strength = highlightStrength)
     }
     return modifier
 }
@@ -188,7 +191,7 @@ fun WinkGlassTopBar(
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 阴影负责把玻璃从内容上「抬起来」；亮色主题下玻璃与背景都很浅，仅靠高光描边无法形成边缘定义
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shadowAlpha = if (isDark) 0.55f else 0.16f
+    val shadowAlpha = if (isDark) 0.28f else 0.16f
 
     Box(
         modifier = modifier
