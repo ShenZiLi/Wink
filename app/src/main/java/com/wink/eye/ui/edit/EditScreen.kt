@@ -114,7 +114,7 @@ fun EditScreen(
 
     // 顶栏玻璃的采样源：由表单内容提供被模糊的画面
     val topBarHazeState = rememberHazeState()
-    val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
+    val topBarHeight = WinkGlassTopBarDefaults.contentTopPadding()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -128,7 +128,8 @@ fun EditScreen(
                 .winkGlassSource(topBarHazeState)
                 .verticalScroll(rememberScrollState())
                 .padding(top = topBarHeight)
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                // 顶部间距已由 contentTopPadding 统一控制，这里只补底部
+                .padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // ── 基础设置：规则名称 + 规则类型 ──

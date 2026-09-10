@@ -114,7 +114,7 @@ fun EarClockEditScreen(
 
     // 顶栏玻璃的采样源：由表单内容提供被模糊的画面
     val topBarHazeState = rememberHazeState()
-    val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
+    val topBarHeight = WinkGlassTopBarDefaults.contentTopPadding()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,

@@ -245,9 +245,16 @@ object WinkGlassTopBarDefaults {
     /** 不含状态栏的顶栏内容高度 */
     val Height = 64.dp
 
+    /** 顶栏下缘与正文之间的呼吸间距，避免正文紧贴顶栏 */
+    val ContentTopSpacing = 12.dp
+
     /** 含状态栏的完整高度，供内容层计算顶部留白 */
     @Composable
     fun totalHeight(): Dp = Height + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    /** 顶栏完整高度 + 正文呼吸间距，作为内容层顶部留白的推荐值 */
+    @Composable
+    fun contentTopPadding(): Dp = totalHeight() + ContentTopSpacing
 }
 
 /** 常用玻璃形状 */
