@@ -206,7 +206,10 @@ fun WinkGlassTopBar(
             .winkGlassSurface(
                 state = hazeState,
                 shape = WinkGlassShapes.TopBar,
-                blurRadius = WinkGlassDefaults.TopBarBlur
+                blurRadius = WinkGlassDefaults.TopBarBlur,
+                // 顶栏不画高光描边：1px 白线在深色底上会被放大成一道明显的边框，
+                // 边界改由阴影与底部圆角轮廓承担
+                drawHighlight = false
             )
     ) {
         Row(
