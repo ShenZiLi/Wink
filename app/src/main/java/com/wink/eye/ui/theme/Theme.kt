@@ -201,4 +201,12 @@ object WinkLayoutOverlay {
      * 各页面底部留白统一引用此常量，保证切换时列表底部对齐一致。
      */
     val BottomBarOverlayHeight = 116.dp
+
+    /**
+     * Wink 页底部调试面板的底边留白。
+     *
+     * 比列表用的 [BottomBarOverlayHeight] 小 16dp，让面板整体更贴近悬浮菜单栏；
+     * 面板 Card 自带 8dp 内边距，叠加后与玻璃条顶部仍留有约 14dp 呼吸间距，不会被遮挡。
+     */
+    val DebugPanelBottomPadding = 100.dp
 }

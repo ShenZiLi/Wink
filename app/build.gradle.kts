@@ -68,5 +68,10 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Haze 1.6.10：Compose 背景模糊（backdrop blur），液态玻璃的基础层。
+    // 说明：Haze 2 的 haze-glass 模块（折射玻璃）要求 Kotlin 2.4 + AGP 9.1 + compileSdk 37，
+    // 本项目的构建链暂时不满足，故选用稳定版 1.x；折射/高光由自绘玻璃层补齐。
+    implementation("dev.chrisbanes.haze:haze:1.6.10")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

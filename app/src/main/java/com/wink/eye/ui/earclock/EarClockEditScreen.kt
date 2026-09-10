@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,6 +64,10 @@ import com.wink.eye.data.EarClockAlarm
 import com.wink.eye.data.EarClockFrequency
 import com.wink.eye.data.VibrationMode
 import com.wink.eye.service.EarClockAlarmScheduler
+import com.wink.eye.ui.components.WinkGlassTopBar
+import com.wink.eye.ui.components.WinkGlassTopBarDefaults
+import com.wink.eye.ui.components.winkGlassSource
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onEach
@@ -107,39 +112,21 @@ fun EarClockEditScreen(
         }
     }
 
+    // 顶栏玻璃的采样源：由表单内容提供被模糊的画面
+    val topBarHazeState = rememberHazeState()
+    val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
+
     Scaffold(
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onCancel) {
-                    Text(stringResource(R.string.edit_back), color = MaterialTheme.colorScheme.primary)
-                }
-                Text(
-                    text = stringResource(R.string.earclock_edit_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
-                )
-                TextButton(
-                    onClick = {
-                        onSave(buildAlarm(existingAlarm, name, hour, minute, frequency,
-                            daysOfWeek, ringtoneUri, vibrationOn, snoozeEnabled, snoozeMinutes, snoozeRepeatLimit))
-                    },
-                    enabled = isValid(frequency, daysOfWeek)
-                ) {
-                    Text(stringResource(R.string.edit_save), color = MaterialTheme.colorScheme.primary)
-                }
-            }
-        }
-    ) { padding ->
+        containerColor = MaterialTheme.colorScheme.background,
+        // 内容自行处理状态栏留白，使内容能从悬浮玻璃顶栏下方穿过
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { _ ->
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .winkGlassSource(topBarHazeState)
+                .padding(top = topBarHeight)
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -248,6 +235,32 @@ fun EarClockEditScreen(
                 onSnoozeRepeatLimitChange = { snoozeRepeatLimit = it },
                 frequency = frequency
             )
+        }
+
+        // 悬浮液态玻璃顶栏：叠在表单之上，内容会从其下方穿过
+        WinkGlassTopBar(
+            title = stringResource(R.string.earclock_edit_title),
+            hazeState = topBarHazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            navigationIcon = {
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.edit_back), color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            actions = {
+                TextButton(
+                    onClick = {
+                        onSave(buildAlarm(existingAlarm, name, hour, minute, frequency,
+                            daysOfWeek, ringtoneUri, vibrationOn, snoozeEnabled, snoozeMinutes, snoozeRepeatLimit))
+                    },
+                    enabled = isValid(frequency, daysOfWeek)
+                ) {
+                    Text(stringResource(R.string.edit_save), color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            // 项目规范：编辑页标题居中
+            centeredTitle = true
+        )
         }
     }
 }

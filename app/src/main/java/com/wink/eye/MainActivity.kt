@@ -48,6 +48,7 @@ import com.wink.eye.data.RuleRepository
 import com.wink.eye.data.RuleType
 import com.wink.eye.service.IntervalAlarmScheduler
 import com.wink.eye.service.ScreenMonitorService
+import com.wink.eye.ui.components.winkGlassSource
 import com.wink.eye.ui.edit.EditScreen
 import com.wink.eye.ui.earclock.EarClockEditScreen
 import com.wink.eye.ui.earclock.EarClockHomeScreen
@@ -56,6 +57,7 @@ import com.wink.eye.ui.home.HomeScreen
 import com.wink.eye.ui.home.HomeViewModel
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.WinkTheme
+import dev.chrisbanes.haze.rememberHazeState
 
 class MainActivity : ComponentActivity() {
 
@@ -112,6 +114,9 @@ fun WinkNavHost(repository: RuleRepository) {
     val earClockViewModel: EarClockHomeViewModel = viewModel(factory = EarClockHomeViewModel.Factory())
     val earClockRepository = WinkApp.instance.earClockRepository
 
+    // 底部悬浮导航栏的玻璃采样源：由 NavHost 内的页面内容提供被模糊的画面
+    val bottomBarHazeState = rememberHazeState()
+
     // 底部导航栏仅在主页面（home/earclock）显示
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -145,7 +150,10 @@ fun WinkNavHost(repository: RuleRepository) {
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = Modifier.padding(innerPadding),
+                modifier = Modifier
+                    .padding(innerPadding)
+                    // 页面内容作为底部导航栏玻璃的采样源（不产生视觉变化）
+                    .winkGlassSource(bottomBarHazeState),
                 enterTransition = { fadeIn(tween(300)) },
                 exitTransition = { fadeOut(tween(250)) },
                 popEnterTransition = { fadeIn(tween(300)) },
@@ -245,7 +253,8 @@ fun WinkNavHost(repository: RuleRepository) {
                     borderColor = MaterialTheme.colorScheme.outlineVariant,
                     barHeight = 70.dp,
                     cornerRadius = 30.dp,
-                    showBorder = true
+                    showBorder = true,
+                    hazeState = bottomBarHazeState
                 )
             }
         }

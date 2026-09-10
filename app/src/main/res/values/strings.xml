@@ -20,6 +20,10 @@
     <!-- Summary -->
     <string name="summary_interval">每 %1$d %2$s</string>
     <string name="summary_screen_time">亮屏%1$d%2$s / 暗屏重置%3$d%4$s</string>
+    <!-- 卡片主值大字：数值 + 单位 -->
+    <string name="summary_value">%1$d %2$s</string>
+    <!-- 卡片底部描述：亮屏规则的次要参数 -->
+    <string name="summary_screen_off_reset">暗屏重置 %1$d %2$s</string>
 
     <!-- Edit -->
     <string name="edit_title_new">新增规则</string>

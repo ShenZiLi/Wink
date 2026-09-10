@@ -11,3 +11,5 @@
 local.properties
 *.hprofapp/*-keystore.jks
 .kotlin
+# 本地 agent 记忆目录，不纳入版本管理
+.workbuddy/

@@ -2,25 +2,29 @@ package com.wink.eye.ui.edit
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +48,10 @@ import com.wink.eye.data.ReminderMode
 import com.wink.eye.data.Rule
 import com.wink.eye.data.RuleType
 import com.wink.eye.data.ScreenTimeUnit
+import com.wink.eye.ui.components.WinkGlassTopBar
+import com.wink.eye.ui.components.WinkGlassTopBarDefaults
+import com.wink.eye.ui.components.winkGlassSource
+import dev.chrisbanes.haze.rememberHazeState
 import java.util.UUID
 
 /** Debug 开关：允许亮屏时长/暗屏重置使用秒级单位，正式上线时设为 false */
@@ -82,62 +90,48 @@ fun EditScreen(
 
     val isFormValid = name.isNotBlank() && (ruleTypeIndex == 1 || intervalValue > 0)
 
-    Scaffold(
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onBack) {
-                    Text(stringResource(R.string.edit_back), color = MaterialTheme.colorScheme.primary)
-                }
-                Text(
-                    text = if (isEditing) stringResource(R.string.edit_title_edit)
-                    else stringResource(R.string.edit_title_new),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
-                )
-                TextButton(
-                    onClick = {
-                        val ruleType = if (ruleTypeIndex == 0) {
-                            RuleType.Interval(value = intervalValue, unit = intervalUnit)
-                        } else {
-                            RuleType.ScreenTime(
-                                screenOnDuration = screenOnDuration.toInt(),
-                                screenOffResetDuration = screenOffResetDuration.toInt(),
-                                screenOnUnit = screenOnUnit,
-                                screenOffResetUnit = screenOffResetUnit
-                            )
-                        }
-                        val rule = Rule(
-                            id = existingRule?.id ?: UUID.randomUUID().toString(),
-                            name = name.ifBlank { context.getString(R.string.default_rule_name) },
-                            type = ruleType,
-                            reminderMode = reminderMode,
-                            enabled = existingRule?.enabled ?: true
-                        )
-                        onSave(rule)
-                    },
-                    enabled = isFormValid
-                ) {
-                    Text(stringResource(R.string.edit_save), color = MaterialTheme.colorScheme.primary)
-                }
-            }
+    // 顶栏「保存」与底部主按钮共用同一构建逻辑
+    val saveRule: () -> Unit = {
+        val ruleType = if (ruleTypeIndex == 0) {
+            RuleType.Interval(value = intervalValue, unit = intervalUnit)
+        } else {
+            RuleType.ScreenTime(
+                screenOnDuration = screenOnDuration.toInt(),
+                screenOffResetDuration = screenOffResetDuration.toInt(),
+                screenOnUnit = screenOnUnit,
+                screenOffResetUnit = screenOffResetUnit
+            )
         }
-    ) { padding ->
+        val rule = Rule(
+            id = existingRule?.id ?: UUID.randomUUID().toString(),
+            name = name.ifBlank { context.getString(R.string.default_rule_name) },
+            type = ruleType,
+            reminderMode = reminderMode,
+            enabled = existingRule?.enabled ?: true
+        )
+        onSave(rule)
+    }
+
+    // 顶栏玻璃的采样源：由表单内容提供被模糊的画面
+    val topBarHazeState = rememberHazeState()
+    val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        // 内容自行处理状态栏留白，使滚动内容能从悬浮玻璃顶栏下方穿过
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { _ ->
+        Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
+                .winkGlassSource(topBarHazeState)
+                .verticalScroll(rememberScrollState())
+                .padding(top = topBarHeight)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(Modifier.height(4.dp))
-
-            // ── 规则设置卡片 ──
+            // ── 基础设置：规则名称 + 规则类型 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -146,7 +140,6 @@ fun EditScreen(
                 )
             ) {
                 Column {
-                    // 规则名称
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -155,38 +148,35 @@ fun EditScreen(
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                    // 规则类型
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = stringResource(R.string.edit_type_label),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.align(Alignment.CenterVertically)
-                        )
-                        Spacer(Modifier.weight(1f))
-                        FilterChip(
-                            selected = ruleTypeIndex == 0,
-                            onClick = { ruleTypeIndex = 0 },
-                            label = { Text(stringResource(R.string.rule_type_interval)) }
-                        )
-                        FilterChip(
-                            selected = ruleTypeIndex == 1,
-                            onClick = { ruleTypeIndex = 1 },
-                            label = { Text(stringResource(R.string.rule_type_screen)) }
-                        )
+                        SectionLabel(stringResource(R.string.edit_type_label))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SelectPill(
+                                text = stringResource(R.string.rule_type_interval),
+                                selected = ruleTypeIndex == 0,
+                                onClick = { ruleTypeIndex = 0 },
+                                modifier = Modifier.weight(1f)
+                            )
+                            SelectPill(
+                                text = stringResource(R.string.rule_type_screen),
+                                selected = ruleTypeIndex == 1,
+                                onClick = { ruleTypeIndex = 1 },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }
 
-            // ── 间隔时间卡片 ──
+            // ── 间隔时间设置 ──
             if (ruleTypeIndex == 0) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -196,83 +186,83 @@ fun EditScreen(
                     )
                 ) {
                     Column {
-                        // 自定义间隔
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                stringResource(R.string.edit_interval_custom_label),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            OutlinedTextField(
-                                value = intervalValueText,
-                                onValueChange = { text ->
-                                    intervalValueText = text.filter { it.isDigit() }
-                                    intervalValue = text.filter { it.isDigit() }.toIntOrNull() ?: 0
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier.width(72.dp)
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                FilterChip(
+                            SectionLabel(stringResource(R.string.edit_interval_custom_label))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = intervalValueText,
+                                    onValueChange = { input: String ->
+                                        val digits = input.filter(Char::isDigit)
+                                        intervalValueText = digits
+                                        intervalValue = digits.toIntOrNull() ?: 0
+                                    },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
+                                    modifier = Modifier.width(140.dp)
+                                )
+                                SelectPill(
+                                    text = stringResource(R.string.unit_minutes),
                                     selected = intervalUnit == IntervalUnit.MINUTES,
                                     onClick = { intervalUnit = IntervalUnit.MINUTES },
-                                    label = { Text(stringResource(R.string.unit_minutes)) }
+                                    modifier = Modifier.weight(1f)
                                 )
-                                FilterChip(
+                                SelectPill(
+                                    text = stringResource(R.string.unit_seconds),
                                     selected = intervalUnit == IntervalUnit.SECONDS,
                                     onClick = { intervalUnit = IntervalUnit.SECONDS },
-                                    label = { Text(stringResource(R.string.unit_seconds)) }
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                        // 快捷预设
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                stringResource(R.string.edit_interval_preset_label),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Spacer(Modifier.weight(1f))
-                            FilterChip(
-                                selected = isPreset15,
-                                onClick = {
-                                    intervalValue = 15; intervalValueText = "15"; intervalUnit = IntervalUnit.MINUTES
-                                },
-                                label = { Text(stringResource(R.string.preset_15min)) }
-                            )
-                            FilterChip(
-                                selected = isPreset30,
-                                onClick = {
-                                    intervalValue = 30; intervalValueText = "30"; intervalUnit = IntervalUnit.MINUTES
-                                },
-                                label = { Text(stringResource(R.string.preset_30min)) }
-                            )
-                            FilterChip(
-                                selected = isPreset1h,
-                                onClick = {
-                                    intervalValue = 60; intervalValueText = "60"; intervalUnit = IntervalUnit.MINUTES
-                                },
-                                label = { Text(stringResource(R.string.preset_1hour)) }
-                            )
+                            SectionLabel(stringResource(R.string.edit_interval_preset_label))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SelectPill(
+                                    text = stringResource(R.string.preset_15min),
+                                    selected = isPreset15,
+                                    onClick = {
+                                        intervalValue = 15; intervalValueText = "15"; intervalUnit = IntervalUnit.MINUTES
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SelectPill(
+                                    text = stringResource(R.string.preset_30min),
+                                    selected = isPreset30,
+                                    onClick = {
+                                        intervalValue = 30; intervalValueText = "30"; intervalUnit = IntervalUnit.MINUTES
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SelectPill(
+                                    text = stringResource(R.string.preset_1hour),
+                                    selected = isPreset1h,
+                                    onClick = {
+                                        intervalValue = 60; intervalValueText = "60"; intervalUnit = IntervalUnit.MINUTES
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // ── 亮屏时长卡片 ──
+            // ── 亮屏时长设置 ──
             if (ruleTypeIndex == 1) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -282,82 +272,40 @@ fun EditScreen(
                     )
                 ) {
                     Column {
-                        val screenOnUnitLabel = if (screenOnUnit == ScreenTimeUnit.MINUTES)
-                            stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
-                        val screenOffResetUnitLabel = if (screenOffResetUnit == ScreenTimeUnit.MINUTES)
-                            stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
-
-                        // 亮屏时长
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "${stringResource(R.string.edit_screen_on_label)}: ${screenOnDuration.toInt()} $screenOnUnitLabel",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Slider(
-                                value = screenOnDuration,
-                                onValueChange = { screenOnDuration = it },
-                                valueRange = if (screenOnUnit == ScreenTimeUnit.MINUTES) 5f..120f else 5f..300f,
-                                steps = if (screenOnUnit == ScreenTimeUnit.MINUTES) 22 else 58,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            if (DEBUG_SECONDS_ENABLED) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    FilterChip(
-                                        selected = screenOnUnit == ScreenTimeUnit.MINUTES,
-                                        onClick = { screenOnUnit = ScreenTimeUnit.MINUTES; screenOnDuration = 30f },
-                                        label = { Text(stringResource(R.string.unit_minutes)) }
-                                    )
-                                    FilterChip(
-                                        selected = screenOnUnit == ScreenTimeUnit.SECONDS,
-                                        onClick = { screenOnUnit = ScreenTimeUnit.SECONDS; screenOnDuration = 30f },
-                                        label = { Text(stringResource(R.string.unit_seconds)) }
-                                    )
-                                }
+                        SliderSection(
+                            label = stringResource(R.string.edit_screen_on_label),
+                            value = screenOnDuration,
+                            unit = screenOnUnit,
+                            onValueChange = { screenOnDuration = it },
+                            minutesRange = 5f..120f,
+                            minutesSteps = 22,
+                            secondsRange = 5f..300f,
+                            secondsSteps = 58,
+                            onUnitChange = { unit ->
+                                screenOnUnit = unit
+                                screenOnDuration = 30f
                             }
-                        }
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                        // 暗屏重置
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = "${stringResource(R.string.edit_screen_off_reset_label)}: ${screenOffResetDuration.toInt()} $screenOffResetUnitLabel",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Slider(
-                                value = screenOffResetDuration,
-                                onValueChange = { screenOffResetDuration = it },
-                                valueRange = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) 1f..30f else 5f..300f,
-                                steps = if (screenOffResetUnit == ScreenTimeUnit.MINUTES) 28 else 58,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            if (DEBUG_SECONDS_ENABLED) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    FilterChip(
-                                        selected = screenOffResetUnit == ScreenTimeUnit.MINUTES,
-                                        onClick = { screenOffResetUnit = ScreenTimeUnit.MINUTES; screenOffResetDuration = 5f },
-                                        label = { Text(stringResource(R.string.unit_minutes)) }
-                                    )
-                                    FilterChip(
-                                        selected = screenOffResetUnit == ScreenTimeUnit.SECONDS,
-                                        onClick = { screenOffResetUnit = ScreenTimeUnit.SECONDS; screenOffResetDuration = 30f },
-                                        label = { Text(stringResource(R.string.unit_seconds)) }
-                                    )
-                                }
+                        SliderSection(
+                            label = stringResource(R.string.edit_screen_off_reset_label),
+                            value = screenOffResetDuration,
+                            unit = screenOffResetUnit,
+                            onValueChange = { screenOffResetDuration = it },
+                            minutesRange = 1f..30f,
+                            minutesSteps = 28,
+                            secondsRange = 5f..300f,
+                            secondsSteps = 58,
+                            onUnitChange = { unit ->
+                                screenOffResetUnit = unit
+                                screenOffResetDuration = if (unit == ScreenTimeUnit.MINUTES) 5f else 30f
                             }
-                        }
+                        )
                     }
                 }
             }
 
-            // ── 提醒方式卡片 ──
+            // ── 提醒方式 ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
@@ -365,64 +313,187 @@ fun EditScreen(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        stringResource(R.string.edit_reminder_label),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(Modifier.weight(1f))
-                    FilterChip(
-                        selected = reminderMode == ReminderMode.ALARM,
-                        onClick = { reminderMode = ReminderMode.ALARM },
-                        label = { Text(stringResource(R.string.edit_reminder_alarm)) }
-                    )
-                    FilterChip(
-                        selected = reminderMode == ReminderMode.NOTIFICATION,
-                        onClick = { reminderMode = ReminderMode.NOTIFICATION },
-                        label = { Text(stringResource(R.string.edit_reminder_notification)) }
-                    )
+                    SectionLabel(stringResource(R.string.edit_reminder_label))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SelectPill(
+                            text = stringResource(R.string.edit_reminder_alarm),
+                            selected = reminderMode == ReminderMode.ALARM,
+                            onClick = { reminderMode = ReminderMode.ALARM },
+                            modifier = Modifier.weight(1f)
+                        )
+                        SelectPill(
+                            text = stringResource(R.string.edit_reminder_notification),
+                            selected = reminderMode == ReminderMode.NOTIFICATION,
+                            onClick = { reminderMode = ReminderMode.NOTIFICATION },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-
             // 保存按钮
             Button(
-                onClick = {
-                    val ruleType = if (ruleTypeIndex == 0) {
-                        RuleType.Interval(value = intervalValue, unit = intervalUnit)
-                    } else {
-                        RuleType.ScreenTime(
-                            screenOnDuration = screenOnDuration.toInt(),
-                            screenOffResetDuration = screenOffResetDuration.toInt(),
-                            screenOnUnit = screenOnUnit,
-                            screenOffResetUnit = screenOffResetUnit
-                        )
-                    }
-                    val rule = Rule(
-                        id = existingRule?.id ?: UUID.randomUUID().toString(),
-                        name = name.ifBlank { context.getString(R.string.default_rule_name) },
-                        type = ruleType,
-                        reminderMode = reminderMode,
-                        enabled = existingRule?.enabled ?: true
-                    )
-                    onSave(rule)
-                },
+                onClick = saveRule,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .padding(top = 4.dp, bottom = 8.dp),
                 enabled = isFormValid,
                 shape = RoundedCornerShape(14.dp)
             ) {
                 Text(
                     stringResource(R.string.edit_save),
+                    modifier = Modifier.padding(vertical = 4.dp),
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // 悬浮液态玻璃顶栏：叠在表单之上，滚动时内容会从其下方穿过
+        WinkGlassTopBar(
+            title = if (isEditing) stringResource(R.string.edit_title_edit)
+            else stringResource(R.string.edit_title_new),
+            hazeState = topBarHazeState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            navigationIcon = {
+                TextButton(onClick = onBack) {
+                    Text(stringResource(R.string.edit_back), color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            actions = {
+                TextButton(onClick = saveRule, enabled = isFormValid) {
+                    Text(stringResource(R.string.edit_save), color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            // 项目规范：编辑页标题居中
+            centeredTitle = true
+        )
+        }
+    }
+}
+
+/** 区块小标题：灰色小字，置于控件组上方 */
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/**
+ * 单选分段按钮：默认按内容自适应宽度；
+ * 传入 [Modifier.weight] 即可等分铺满整行（用法见各选项组）。
+ */
+@Composable
+private fun SelectPill(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(44.dp),
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        border = if (selected) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+        } else {
+            null
+        }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                maxLines = 1,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+    }
+}
+
+/** 亮屏时长卡片内的一行滑块设置：标题 + 当前值 + 滑杆 + 单位切换 */
+@Composable
+private fun SliderSection(
+    label: String,
+    value: Float,
+    unit: ScreenTimeUnit,
+    onValueChange: (Float) -> Unit,
+    minutesRange: ClosedFloatingPointRange<Float>,
+    minutesSteps: Int,
+    secondsRange: ClosedFloatingPointRange<Float>,
+    secondsSteps: Int,
+    onUnitChange: (ScreenTimeUnit) -> Unit
+) {
+    val unitLabel = if (unit == ScreenTimeUnit.MINUTES) {
+        stringResource(R.string.unit_minutes)
+    } else {
+        stringResource(R.string.unit_seconds)
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${value.toInt()} $unitLabel",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = if (unit == ScreenTimeUnit.MINUTES) minutesRange else secondsRange,
+            steps = if (unit == ScreenTimeUnit.MINUTES) minutesSteps else secondsSteps,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (DEBUG_SECONDS_ENABLED) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SelectPill(
+                    text = stringResource(R.string.unit_minutes),
+                    selected = unit == ScreenTimeUnit.MINUTES,
+                    onClick = { onUnitChange(ScreenTimeUnit.MINUTES) },
+                    modifier = Modifier.weight(1f)
+                )
+                SelectPill(
+                    text = stringResource(R.string.unit_seconds),
+                    selected = unit == ScreenTimeUnit.SECONDS,
+                    onClick = { onUnitChange(ScreenTimeUnit.SECONDS) },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }

@@ -5,7 +5,81 @@
 - 不许使用导航图标（如箭头图标），统一使用 `TextButton` + 文字。
 - 左侧文字：`stringResource(R.string.edit_back)`
 - 右侧文字：`stringResource(R.string.edit_save)`
-- 布局方式：`Row` 包裹三个元素（左按钮、居中标题、右按钮），`Modifier.weight(1f)` 让标题撑满中间。
+- 布局方式：统一用 `WinkGlassTopBar`，传 `navigationIcon`（返回）、`actions`（保存）、**`centeredTitle = true`**（标题居中）。
+  标题由组件内部用 `Modifier.weight(1f)` 撑满中间，不要自行拼 `Row`。
+
+## 液态玻璃导航层（Liquid Glass）
+
+设计依据 Apple WWDC25 Liquid Glass 规范，实现见 `ui/components/WinkGlass.kt`。
+
+### 三条铁律（违反即破坏设计体系）
+
+1. **玻璃只用于导航层**。顶栏、底部导航栏、工具栏可以用玻璃；内容层（卡片、表单、面板）一律用不透明表面色。
+2. **不嵌套玻璃**。玻璃元素之上或之内不要再叠玻璃，也不要在一屏内堆多块玻璃。
+3. **染色只给主要操作与选中态**，不做整体染色。
+
+### 依赖与版本红线
+
+```kotlin
+implementation("dev.chrisbanes.haze:haze:1.6.10")   // 提供 backdrop blur
+```
+
+> ⚠️ **不要升级这个依赖。** Haze 1.7.3 及以上要求 Compose 1.12.0，Haze 2 还要求 Kotlin 2.4 + AGP 9.1 + compileSdk 37；
+> 本项目是 AGP 8.10 / Kotlin 2.1 / compileSdk 36，升上去等于整套构建链重做。
+> Haze 1.x **没有** `haze-glass` 模块（折射玻璃是 2.0 独有），折射与高光由 `glassHighlight` 等自绘层补齐。
+
+### 组件清单
+
+| 组件 | 用途 |
+|---|---|
+| `WinkGlassVariant` | `Regular`（默认，随主题自适应）/ `Clear`（永久透明，仅用于媒体丰富内容之上）。**两者不混用** |
+| `winkGlassStyle(variant, blurRadius, tintBoost)` | 生成主题自适应样式：染色 + 磨砂噪声 + 不支持模糊时的回退底色 |
+| `Modifier.winkGlassSource(state)` | 把节点标记为**采样源**（内容层用），无视觉效果 |
+| `Modifier.winkGlassSurface(state, shape, blurRadius, drawHighlight)` | 把节点变成玻璃：背景模糊 + 高光描边 |
+| `Modifier.glassHighlight(shape, strength)` | 顶部高光描边，模拟光源自上而下，制造薄厚度 |
+| `WinkGlassTopBar(title, hazeState, navigationIcon, actions, centeredTitle)` | 悬浮玻璃顶栏，内置状态栏 padding 与主题自适应阴影 |
+| `WinkGlassDefaults` | 模糊半径基准：导航栏 `NavigationBarBlur` / 顶栏 `TopBarBlur` |
+| `WinkGlassShapes` | `NavigationBar`（30dp 圆角）/ `TopBar`（下方圆角） |
+| `WinkGlassTopBarDefaults.totalHeight()` | 顶栏含状态栏的完整高度，供内容层算留白 |
+
+### 用法：内容层与导航层共享同一个 HazeState
+
+```kotlin
+val hazeState = rememberHazeState()
+
+Box(Modifier.fillMaxSize()) {
+    // 内容层：标记为采样源 + 顶部让出顶栏高度
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().winkGlassSource(hazeState),
+        contentPadding = PaddingValues(top = WinkGlassTopBarDefaults.totalHeight())
+    ) { ... }
+
+    // 导航层：悬浮叠在内容之上
+    WinkGlassTopBar("标题", hazeState, Modifier.align(Alignment.TopCenter))
+}
+```
+
+### 新增玻璃导航元素的标准步骤
+
+1. 页面 `Scaffold` 设 `contentWindowInsets = WindowInsets(0, 0, 0, 0)`，状态栏留白由内容自行处理。
+2. 顶栏**不要**放进 `Scaffold` 的 `topBar` 槽位 —— 用 `Box` + `align(TopCenter)` **悬浮叠放**。
+3. 内容打 `winkGlassSource`，顶部留白设为顶栏完整高度（列表用 `WinkConfigList(extraTopPadding = ...)`）。
+4. 玻璃元素自身加 `Modifier.shadow(...)` 建立浮起层次。
+
+> **为什么必须这样**：若顶栏走 `Scaffold` 槽位，内容永远落在顶栏下方，玻璃采样不到任何画面，模糊形同虚设。
+> 悬浮叠放后，列表滚动时内容会从玻璃下方穿过，玻璃才有可模糊的对象。
+
+### 参数基准
+
+- 模糊半径：底部导航栏 30dp / 顶栏 24dp
+- 玻璃底色 alpha：亮色 0.66 / 暗色 0.58（由 `background.luminance()` 自动判定）
+- 顶栏阴影 alpha：亮色 0.16 / 暗色 0.55。**亮色主题下玻璃与背景都很浅，只靠 1px 高光描边看不出边缘，必须靠阴影建立层级**。
+
+### 已玻璃化的元素
+
+底部导航栏（`com.compose.liquidglassnav.LiquidGlassBottomNavBar`）、Wink 首页顶栏、EarClock 首页顶栏、规则编辑页顶栏、耳机闹钟编辑页顶栏。
+
+> 各导航元素持有**独立**的 `HazeState`（采样源不同）；底部导航栏的采样源是 `MainActivity` 中的 `NavHost`。
 
 ## Git 提交约定
 - **每次功能改动完成后，立即将改动提交到本地 git。**（commit 到本地仓库，无需推送远端）
