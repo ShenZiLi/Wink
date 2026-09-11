@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -354,8 +355,7 @@ private fun WheelTimePicker(
 /** 单列滚轮：以穿过中线的值确定选中，切换项时触发触觉反馈，支持循环滚动 */
 @Composable
 private fun WheelColumn(range: IntRange, selected: Int, onSelect: (Int) -> Unit) {
-    // 40dp：3 项视口共 120dp，在保证可读性的前提下给整页留出更多纵向空间
-    val itemHeight = 40.dp
+    val itemHeight = 48.dp
     val totalItems = range.last - range.first + 1
     // 循环滚动：remember 缓存列表，避免每次重组重新创建 24000 个元素
     val items = remember(totalItems) {
@@ -525,50 +525,106 @@ private fun SettingsCard(
                 onCheckedChange = onSnoozeEnabledChange
             )
             if (snoozeEnabled) {
+                // 两组参数压进同一行：改用比 FilterChip 更矮更窄的紧凑块，
+                // 省下约 40dp 纵向空间，换取整页一屏展示（时间轮保持原生 48dp 高度）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        stringResource(R.string.earclock_edit_snooze_interval),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // 左右两段等分，标签与选项块对齐
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.earclock_edit_snooze_minutes_short),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(6.dp))
                         listOf(5, 10, 15).forEach { v ->
-                            FilterChip(
+                            SnoozeOptionChip(
+                                text = v.toString(),
                                 selected = snoozeMinutes == v,
-                                onClick = { onSnoozeMinutesChange(v) },
-                                label = { Text("${v}${stringResource(R.string.unit_minutes)}") }
+                                onClick = { onSnoozeMinutesChange(v) }
                             )
+                            Spacer(Modifier.width(4.dp))
                         }
                     }
-                }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.earclock_edit_snooze_limit),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.earclock_edit_snooze_times_short),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(6.dp))
                         listOf(1, 3, 5).forEach { v ->
-                            FilterChip(
+                            SnoozeOptionChip(
+                                text = v.toString(),
                                 selected = snoozeRepeatLimit == v,
-                                onClick = { onSnoozeRepeatLimitChange(v) },
-                                label = { Text(stringResource(R.string.earclock_edit_snooze_times_label, v)) }
+                                onClick = { onSnoozeRepeatLimitChange(v) }
                             )
+                            Spacer(Modifier.width(4.dp))
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 稍后提醒板块内的紧凑选项块。
+ *
+ * 比 Material3 的 FilterChip 更矮更窄（30dp / 横向 9dp），
+ * 用于把「间隔」与「次数」两组选项压进同一行，避免各占一行。
+ */
+@Composable
+private fun SnoozeOptionChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    // 注意：不能用 Surface(onClick = ...) 重载 —— 它会把最小点击尺寸强制为 48dp，
+    // 六块并排后会超出屏幕宽度，导致最右侧选项被裁切
+    Surface(
+        modifier = Modifier
+            .height(30.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        border = if (selected) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+        } else {
+            null
+        }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 1
+            )
         }
     }
 }

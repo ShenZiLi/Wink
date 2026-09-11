@@ -122,6 +122,9 @@
     <string name="earclock_edit_snooze">稍后提醒</string>
     <string name="earclock_edit_snooze_interval">提醒间隔</string>
     <string name="earclock_edit_snooze_limit">最大次数</string>
+    <!-- 稍后提醒参数行的短标签：把两组选项压进同一行 -->
+    <string name="earclock_edit_snooze_minutes_short">间隔</string>
+    <string name="earclock_edit_snooze_times_short">次数</string>
     <string name="earclock_edit_snooze_times_label">%1$d 次</string>
     <string name="earclock_edit_snooze_on" translatable="false">已开启</string>
 
