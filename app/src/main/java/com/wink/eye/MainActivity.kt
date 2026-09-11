@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -104,6 +105,18 @@ class MainActivity : ComponentActivity() {
             ) {
                 bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
             }
+        }
+
+        // 悬浮窗权限：持有后闹钟可在后台直接唤起全屏页。
+        // 缺失时若厂商 ROM 又拒绝「全屏通知」，闹钟就只剩一条普通通知，需要用户点一下才响。
+        if (!Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "缺少悬浮窗权限，引导用户开启（影响闹钟自动全屏弹出）")
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
         }
 
         // 检查精确闹钟权限 (Android 12+)

@@ -44,7 +44,16 @@ class EarClockAlarmReceiver : BroadcastReceiver() {
         launchAlarm(context, alarm, isSnooze, snoozeCount)
     }
 
-    /** 以 fullScreenIntent 高优通知唤起全屏闹钟页（Android 10+ 后台启动限制的可靠路径） */
+    /**
+     * 唤起全屏闹钟页。
+     *
+     * 走两条路径，任一成功即可（避免「只弹出一条普通通知、必须点一下才全屏」）：
+     * 1. 直接 `startActivity` —— 持有「显示在其他应用上层」权限时，
+     *    后台启动 Activity 属于系统豁免场景，可立即全屏；
+     * 2. 高优通知 + `fullScreenIntent` —— Google 推荐的闹钟路径，
+     *    但依赖「全屏通知」权限，Android 14+ 该权限默认只自动授予闹钟/通话类应用，
+     *    厂商 ROM 常不认（实测 ColorOS 上直接被拒，通知降级）。
+     */
     private fun launchAlarm(
         context: Context,
         alarm: EarClockAlarm,
@@ -53,16 +62,24 @@ class EarClockAlarmReceiver : BroadcastReceiver() {
     ) {
         ensureChannel(context)
 
-        val fullScreenIntent = Intent(context, EarClockAlarmActivity::class.java).apply {
+        val alarmIntent = Intent(context, EarClockAlarmActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EarClockAlarmScheduler.EXTRA_ALARM_ID, alarm.id)
             putExtra(EarClockAlarmScheduler.EXTRA_IS_SNOOZE, isSnooze)
             putExtra(EarClockAlarmScheduler.EXTRA_SNOOZE_COUNT, snoozeCount)
         }
+
+        // 路径 1：直接启动
+        val startedDirectly = runCatching { context.startActivity(alarmIntent) }
+            .onFailure { Log.w(TAG, "直接启动闹钟页被拒，回退到全屏通知", it) }
+            .isSuccess
+        Log.d(TAG, "直接启动闹钟页: $startedDirectly")
+
+        // 路径 2：通知兜底（同时也是用户手动重新进入闹钟页的入口）
         val fullScreenPendingIntent = PendingIntent.getActivity(
             context,
             alarm.id.hashCode(),
-            fullScreenIntent,
+            alarmIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
@@ -73,12 +90,14 @@ class EarClockAlarmReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
+            // 闹钟未处理前不允许划掉，避免误清除后错过提醒
+            .setOngoing(true)
             .setFullScreenIntent(fullScreenPendingIntent, true)
             .build()
 
         context.getSystemService(NotificationManager::class.java)
             .notify(alarm.id.hashCode(), notification)
-        Log.d(TAG, "已唤起全屏闹钟页: ${alarm.name}")
+        Log.d(TAG, "已发出闹钟通知（含全屏意图）: ${alarm.name}")
     }
 
     private fun ensureChannel(context: Context) {

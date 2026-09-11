@@ -1,5 +1,6 @@
 package com.wink.eye
 
+import android.app.NotificationManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
@@ -32,10 +33,15 @@ import java.util.Locale
 /** EarClock 全屏闹钟页：连接耳机时循环播放闹铃，提供「立即关闭」与「稍后提醒」 */
 class EarClockAlarmActivity : ComponentActivity() {
 
+    /** 当前响铃的闹钟 ID，用于退出时清理通知 */
+    private var ringingAlarmId: String? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val alarmId = intent.getStringExtra(EarClockAlarmScheduler.EXTRA_ALARM_ID)
+        val alarmId = intent.getStringExtra(EarClockAlarmScheduler.EXTRA_ALARM_ID).also {
+            ringingAlarmId = it
+        }
         val alarm = alarmId?.let { WinkApp.instance.earClockRepository.getById(it) }
         if (alarm == null) {
             finish()
@@ -160,7 +166,11 @@ class EarClockAlarmActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // 已在 DisposableEffect 中释放；这里额外兜底
+        // 无论用户以何种方式退出，都必须清掉闹钟通知并停止震动
+        ringingAlarmId?.let {
+            getSystemService(NotificationManager::class.java).cancel(it.hashCode())
+        }
+        EarClockAudioHelper.cancelVibration(this)
         super.onDestroy()
     }
 }
