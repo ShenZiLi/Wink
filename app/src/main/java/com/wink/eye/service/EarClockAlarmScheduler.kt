@@ -50,7 +50,14 @@ object EarClockAlarmScheduler {
             )
             return
         }
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMs, pendingIntent)
+        // 用 setAlarmClock 而不是 setExactAndAllowWhileIdle：
+        // 前者是系统最高优先级的闹钟通道，不受 Doze / 各厂商省电策略的窗口延迟影响，
+        // 并会在状态栏展示闹钟图标（符合闹钟语义）。
+        // 实测 setExactAndAllowWhileIdle 在 ColorOS 上会被塞进约 24 秒的触发窗口。
+        alarmManager.setAlarmClock(
+            AlarmManager.AlarmClockInfo(triggerAtMs, null),
+            pendingIntent
+        )
     }
 
     private fun buildPendingIntent(
