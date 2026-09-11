@@ -213,6 +213,8 @@ fun EarClockEditScreen(
             }
 
             SettingsCard(
+                // 与上方星期选择/频率切换拉开间距；两种频率下都能保证不贴在一起
+                modifier = Modifier.padding(top = 16.dp),
                 name = name,
                 onNameChange = { name = it },
                 workdayLabel = stringResource(R.string.earclock_edit_workday_weekdays),
@@ -454,6 +456,7 @@ private fun centeredValueFrom(i0: Int, scrollOffset: Int, itemHeightPx: Float, r
 /** 设置分组卡片 */
 @Composable
 private fun SettingsCard(
+    modifier: Modifier = Modifier,
     name: String,
     onNameChange: (String) -> Unit,
     workdayLabel: String,
@@ -470,7 +473,7 @@ private fun SettingsCard(
     frequency: EarClockFrequency
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
@@ -489,7 +492,8 @@ private fun SettingsCard(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    // 留出浮动 label 的空间，避免「闹钟名称」被卡片上缘压住
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
