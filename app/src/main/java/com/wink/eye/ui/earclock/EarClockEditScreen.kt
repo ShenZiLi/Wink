@@ -5,6 +5,7 @@ import android.media.RingtoneManager
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -125,6 +127,42 @@ fun EarClockEditScreen(
             ringtoneUri = uri.toString()
             ringtoneName = ringtoneTitle(context, uri.toString())
         }
+    }
+
+    // 本地自选音乐：必须用 OpenDocument 才能申请持久化读取权限。
+    // GetContent 返回的 URI 授权只在本进程内有效，重启后读不到文件，
+    // 闹钟会静默降级成默认铃声。
+    val localAudioLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            ringtoneUri = uri.toString()
+            ringtoneName = ringtoneTitle(context, uri.toString())
+        }
+    }
+
+    // 铃声来源选择弹窗
+    var showRingtoneSourceDialog by remember { mutableStateOf(false) }
+
+    val openSystemRingtonePicker = {
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+            // 必须传 Uri（原先误传 String，导致打开时不会预选中当前铃声）
+            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, ringtoneUri?.let(Uri::parse))
+        }
+        // 部分厂商 ROM 未提供系统铃声选择器，避免直接崩溃
+        runCatching { ringtoneLauncher.launch(intent) }
+            .onFailure {
+                Toast.makeText(context, R.string.earclock_ringtone_picker_missing, Toast.LENGTH_SHORT).show()
+            }
     }
 
     // 顶栏玻璃的采样源：由表单内容提供被模糊的画面
@@ -236,22 +274,7 @@ fun EarClockEditScreen(
                 onNameChange = { name = it },
                 workdayLabel = stringResource(R.string.earclock_edit_workday_weekdays),
                 ringtoneName = ringtoneName,
-                onPickRingtone = {
-                    val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                        putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, ringtoneUri)
-                    }
-                    // 部分厂商 ROM 未提供系统铃声选择器，避免直接崩溃
-                    runCatching { ringtoneLauncher.launch(intent) }
-                        .onFailure {
-                            Toast.makeText(
-                                context,
-                                R.string.earclock_ringtone_picker_missing,
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                },
+                onPickRingtone = { showRingtoneSourceDialog = true },
                 vibrationOn = vibrationOn,
                 onVibrationChange = { vibrationOn = it },
                 snoozeEnabled = snoozeEnabled,
@@ -288,6 +311,69 @@ fun EarClockEditScreen(
             // 项目规范：编辑页标题居中
             centeredTitle = true
         )
+        }
+    }
+
+    // 铃声来源选择：系统铃声 / 本地自选音乐
+    if (showRingtoneSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showRingtoneSourceDialog = false },
+            title = { Text(stringResource(R.string.earclock_ringtone_source_title)) },
+            text = {
+                Column {
+                    RingtoneSourceOption(
+                        title = stringResource(R.string.earclock_ringtone_source_system),
+                        description = stringResource(R.string.earclock_ringtone_source_system_desc),
+                        onClick = {
+                            showRingtoneSourceDialog = false
+                            openSystemRingtonePicker()
+                        }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    RingtoneSourceOption(
+                        title = stringResource(R.string.earclock_ringtone_source_local),
+                        description = stringResource(R.string.earclock_ringtone_source_local_desc),
+                        onClick = {
+                            showRingtoneSourceDialog = false
+                            runCatching { localAudioLauncher.launch(arrayOf("audio/*")) }
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showRingtoneSourceDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
+}
+
+/** 铃声来源弹窗中的可点击选项 */
+@Composable
+private fun RingtoneSourceOption(title: String, description: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -593,12 +679,25 @@ private fun SettingsCard(
     }
 }
 
-/** 解析铃声显示名；解析失败返回 null，界面回退到「默认」文案 */
+/**
+ * 解析铃声显示名；解析失败返回 null，界面回退到「默认」文案。
+ *
+ * 系统铃声走 RingtoneManager 取标题；本地自选文件（SAF）没有铃声标题，
+ * 退而读取文档的 DISPLAY_NAME（即文件名）。
+ */
 private fun ringtoneTitle(context: Context, uriString: String?): String? {
     if (uriString.isNullOrBlank()) return null
+    val uri = Uri.parse(uriString)
+
+    runCatching {
+        RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+    }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
+
     return runCatching {
-        RingtoneManager.getRingtone(context, Uri.parse(uriString))?.getTitle(context)
-    }.getOrNull()
+        context.contentResolver
+            .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 }
 
 /**
