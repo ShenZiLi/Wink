@@ -23,7 +23,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
@@ -126,8 +128,10 @@ fun EarClockEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .winkGlassSource(topBarHazeState)
+                // 正常情况下整页无需滚动；小屏或大字体时作为兜底，避免内容被裁切
+                .verticalScroll(rememberScrollState())
                 .padding(top = topBarHeight)
-                .padding(horizontal = 16.dp),
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             CountdownSection(hour, minute, frequency, daysOfWeek)
@@ -180,7 +184,7 @@ fun EarClockEditScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp),
+                                .height(38.dp),
                             shape = RoundedCornerShape(10.dp),
                             color = if (sel) {
                                 MaterialTheme.colorScheme.primaryContainer
@@ -350,7 +354,8 @@ private fun WheelTimePicker(
 /** 单列滚轮：以穿过中线的值确定选中，切换项时触发触觉反馈，支持循环滚动 */
 @Composable
 private fun WheelColumn(range: IntRange, selected: Int, onSelect: (Int) -> Unit) {
-    val itemHeight = 48.dp
+    // 40dp：3 项视口共 120dp，在保证可读性的前提下给整页留出更多纵向空间
+    val itemHeight = 40.dp
     val totalItems = range.last - range.first + 1
     // 循环滚动：remember 缓存列表，避免每次重组重新创建 24000 个元素
     val items = remember(totalItems) {
@@ -493,7 +498,7 @@ private fun SettingsCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     // 留出浮动 label 的空间，避免「闹钟名称」被卡片上缘压住
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
