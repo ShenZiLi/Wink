@@ -77,9 +77,82 @@ Box(Modifier.fillMaxSize()) {
 
 ### 已玻璃化的元素
 
-底部导航栏（`com.compose.liquidglassnav.LiquidGlassBottomNavBar`）、Wink 首页顶栏、EarClock 首页顶栏、规则编辑页顶栏、耳机闹钟编辑页顶栏。
+底部导航栏（`com.compose.liquidglassnav.LiquidGlassBottomNavBar`）、Wink 首页顶栏、EarClock 首页顶栏、二维码页顶栏、规则编辑页顶栏、耳机闹钟编辑页顶栏。
 
 > 各导航元素持有**独立**的 `HazeState`（采样源不同）；底部导航栏的采样源是 `MainActivity` 中的 `NavHost`。
+
+## 二维码页（QRCode Tab）
+
+`ui/qrcode/` 下 7 个文件，是独立二维码 App（CameraX + ML Kit + ZXing）移植进 Wink 的产物。
+单页沉浸式：玻璃顶栏 + 相机取景卡（`weight(1f)`）+ 底部编辑面板，玻璃底部导航栏**叠在编辑面板之上**（面板提供被模糊的内容）。
+
+### 三条硬约束（改这个模块前必读）
+
+1. **`PreviewView` 必须用 `ImplementationMode.COMPATIBLE`**。
+   默认的 `PERFORMANCE` 走 SurfaceView，画面由系统合成器输出、不进 View 绘制树：
+   圆角裁剪失效、会穿透 Compose 层级**盖住悬浮的玻璃底部导航栏**、Haze 也采样不到画面。
+
+2. **相机必须手动释放**。
+   `bindToLifecycle` 绑的是 **Activity** 生命周期，切 Tab 不会触发 `onStop`。
+   绑定放在 `DisposableEffect(shouldRunCamera)` 里，`onDispose` 调 `unbindAll()`；
+   `BarcodeAnalyzer.close()`（即 `BarcodeScanner.close()`）与 `ExecutorService.shutdown()`
+   放在另一个 `DisposableEffect(Unit)` 里。漏掉任何一处都会导致切 Tab 后相机常驻耗电。
+   `addListener` 回调里要带 `disposed` 守卫，否则会在组合销毁后才绑定。
+
+3. **相机权限不进 `MainActivity.requestPermissions()`**。
+   那会让 App 一启动就弹相机权限。改为在 `QrToolScreen` 内按需申请。
+   注意 `shouldShowRequestPermissionRationale` 在「从未申请」与「被永久拒绝」时**都返回 false**，
+   必须配合「是否已申请过」的标记才能区分，否则无法正确引导到系统设置页。
+
+### 其他要点
+
+- **ZXing 生成**：位图在 `Dispatchers.Default` 上生成，用 `IntArray` + `setPixels` 一次写入
+  （逐像素 `setPixel` 在 512×512 下是 26 万次 JNI 调用）。内容超容量时 ZXing 抛异常，
+  必须 catch 后降级成 `QrRenderResult.TooLong` 提示用户，不能让它冒到主线程。
+- **二维码必须保持纯黑白**（染色会降低识别率），用白色圆角卡承载，两种主题下同一种呈现。
+  展示用 512px，导出到相册用 1024px（含 4 模块静默区）。
+- **保存到相册**走 `MediaStore` + `IS_PENDING`（minSdk 34 无需存储权限），落盘位置 `Pictures/Wink`。
+  写入失败要 `resolver.delete(uri)` 清掉占位记录，否则相册里会留空文件。
+- **从相册识别**用 `ActivityResultContracts.PickVisualMedia`（无需权限），
+  `ImageDecoder` 必须设 `allocator = ALLOCATOR_SOFTWARE` —— 默认可能返回 HARDWARE 位图导致 ML Kit 读不到像素；
+  且 `ImageDecoder` 已自动应用 EXIF 方向，`InputImage.fromBitmap` 的旋转角传 0。
+- **文本内容放在 `QrToolViewModel`** 而不是 `remember`。本页是 NavHost 的一个目的地，
+  切 Tab 会离开组合；ViewModel 建于 `WinkNavHost` 顶层（Activity 作用域）才能保留内容。
+- **键盘弹出时的三处联动**（`MainActivity` 已设 `windowSoftInputMode="adjustResize"`，实际靠 IME insets 生效）：
+  1. `QrToolScreen` 给内容加 `imePadding()`；
+  2. 取景卡**压成 0 高而不是移出组合树**，并传 `active = false` 暂停取景。
+     移出组合会连带 `BarcodeAnalyzer.close()` 与执行器 `shutdown()`，键盘一开一关就重建一次相机；
+     压 0 高则保留组件，只释放相机，由 `QrCameraCard` 的 `shouldRunCamera = active && ...` 控制；
+  3. 编辑面板的底部避让高度归零（键盘已挡住导航栏，再留白就是空白），
+     同时 `MainActivity` 在键盘可见时**整体隐藏底部导航栏** —— 悬浮导航栏在窗口底部、
+     不参与页面内容的 IME 避让，留在原地会被输入法候选栏切掉一截。与 iOS 标签栏行为一致。
+- **`WindowInsets.ime` 要先取实例再套 `derivedStateOf`**：它是 `@Composable` 取值，不能直接写在
+  `derivedStateOf` 的 lambda 里；而键盘动画期间 insets 逐帧变化，直接比较布尔值会让
+  `WinkNavHost` / 整页每帧重组。
+- **一次性提示要带自增序号**。若界面只用 `LaunchedEffect(messageRes)`，连续两条相同提示
+  （例如连续两次保存失败）文案不变、副作用不重跑，第二条 Toast 就消失了。
+- **相册识别不要复用带守卫的扫码回调**。`onScanSuccess` 有「动效期间」「生成叠加层显示中」两个
+  守卫，若复用会让相册识别的结果被静默吞掉。追加逻辑抽成 `appendScannedText`，两条路径各自调用；
+  进入相册识别前先 `onHideQr()`，否则叠加层开着时用户会以为「选了图片没反应」。
+- **「可撤销」要在 `onTextChanged` 立即点亮**，不能等 500ms debounce 入栈，
+  否则连续输入期间按钮一直是灰的。快照入栈仍由 debounce 合并，撤销粒度不变。
+- 底部导航共 3 项，`LiquidGlassBottomNavBar` 的指示器位置按 `items.size` 通用计算，无需改组件；
+  但 `MainActivity` 的 `showBottomBar` 与 `selectedIndex` 两处 `when`/条件必须同步补 `qrcode` 分支。
+
+### 二维码模块的依赖
+
+```kotlin
+val cameraX = "1.4.0"
+implementation("androidx.camera:camera-core:$cameraX")      // 要求 compileSdk ≥ 35，本项目 36
+implementation("androidx.camera:camera-camera2:$cameraX")
+implementation("androidx.camera:camera-lifecycle:$cameraX")
+implementation("androidx.camera:camera-view:$cameraX")
+implementation("com.google.mlkit:barcode-scanning:17.3.0")  // bundled 版：模型进 APK，运行时不依赖 GMS
+implementation("com.google.zxing:core:3.5.3")
+implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7") // collectAsStateWithLifecycle / LocalLifecycleOwner
+```
+
+> ML Kit 的 bundled AAR 约 9.9MB，APK 因此增大约 13MB。换 unbundled 版会引入运行时 GMS 下载，不划算。
 
 ## Git 提交约定
 - **每次功能改动完成后，立即将改动提交到本地 git。**（commit 到本地仓库，无需推送远端）

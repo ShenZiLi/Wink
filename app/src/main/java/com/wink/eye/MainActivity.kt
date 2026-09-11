@@ -17,22 +17,28 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.compose.liquidglassnav.LiquidGlassBottomNavBar
 import com.compose.liquidglassnav.NavItem
@@ -56,6 +62,8 @@ import com.wink.eye.ui.earclock.EarClockHomeScreen
 import com.wink.eye.ui.earclock.EarClockHomeViewModel
 import com.wink.eye.ui.home.HomeScreen
 import com.wink.eye.ui.home.HomeViewModel
+import com.wink.eye.ui.qrcode.QrToolScreen
+import com.wink.eye.ui.qrcode.QrToolViewModel
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.WinkTheme
 import dev.chrisbanes.haze.rememberHazeState
@@ -141,15 +149,32 @@ fun WinkNavHost(repository: RuleRepository) {
     val context = LocalContext.current
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())
     val earClockViewModel: EarClockHomeViewModel = viewModel(factory = EarClockHomeViewModel.Factory())
+    // 二维码页的 ViewModel 同样建在 NavHost 顶层（Activity 作用域），
+    // 这样切到别的 Tab 再回来，文本框内容仍然保留
+    val qrToolViewModel: QrToolViewModel = viewModel()
     val earClockRepository = WinkApp.instance.earClockRepository
 
     // 底部悬浮导航栏的玻璃采样源：由 NavHost 内的页面内容提供被模糊的画面
     val bottomBarHazeState = rememberHazeState()
 
-    // 底部导航栏仅在主页面（home/earclock）显示
+    // 底部导航栏仅在主页面显示
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val showBottomBar = currentRoute == "home" || currentRoute == "earclock"
+    val showBottomBar = currentRoute == "home" ||
+        currentRoute == "earclock" ||
+        currentRoute == "qrcode"
+
+    // 键盘弹出时隐藏底部导航栏：它悬浮在窗口底部、不参与页面内容的 IME 避让，
+    // 留在原地会被输入法顶部的候选栏切掉一截（二维码页有文本输入，必然遇到）。
+    // 与 iOS 标签栏在键盘弹出时收起的行为一致。
+    // WindowInsets.ime 是 @Composable 取值，必须先拿到实例；
+    // 再套 derivedStateOf 收口：键盘动画期间 insets 逐帧变化，
+    // 直接在组合里比较布尔值会让整个 NavHost 每帧重组。
+    val imeInsets = WindowInsets.ime
+    val density = LocalDensity.current
+    val imeVisible by remember {
+        derivedStateOf { imeInsets.getBottom(density) > 0 }
+    }
 
     val navItems = remember {
         listOf(
@@ -164,6 +189,12 @@ fun WinkNavHost(repository: RuleRepository) {
                 activeIcon = Icons.Filled.Headphones,
                 label = "EarClock",
                 route = "earclock"
+            ),
+            NavItem(
+                icon = Icons.Outlined.QrCodeScanner,
+                activeIcon = Icons.Filled.QrCodeScanner,
+                label = "QRCode",
+                route = "qrcode"
             )
         )
     }
@@ -171,6 +202,7 @@ fun WinkNavHost(repository: RuleRepository) {
     val selectedIndex = when (currentRoute) {
         "home" -> 0
         "earclock" -> 1
+        "qrcode" -> 2
         else -> 0
     }
 
@@ -230,6 +262,9 @@ fun WinkNavHost(repository: RuleRepository) {
                         viewModel = earClockViewModel
                     )
                 }
+                composable("qrcode") {
+                    QrToolScreen(viewModel = qrToolViewModel)
+                }
                 composable("earclock/edit/new") {
                     EarClockEditScreen(
                         existingAlarm = null,
@@ -256,7 +291,7 @@ fun WinkNavHost(repository: RuleRepository) {
         }
 
         // 悬浮液态玻璃底部导航栏
-        if (showBottomBar) {
+        if (showBottomBar && !imeVisible) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)

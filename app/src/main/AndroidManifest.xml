@@ -15,6 +15,14 @@
     <!-- 持有后可在后台直接启动闹钟全屏页（系统对「有悬浮窗权限」场景豁免后台启动 Activity 限制），
          作为 fullScreenIntent 被厂商 ROM 降级时的可靠兜底 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 二维码 Tab：取景识别。运行时权限只在进入该 Tab 时申请，
+         不在 Application 启动流程里弹窗；camera.any 声明为非必需，
+         避免无摄像头设备被应用市场过滤 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
 
     <application
         android:name=".WinkApp"
@@ -28,7 +36,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Wink">
+            android:theme="@style/Theme.Wink"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
