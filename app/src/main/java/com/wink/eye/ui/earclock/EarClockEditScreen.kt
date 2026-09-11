@@ -573,8 +573,13 @@ private fun SettingsCard(
     }
 }
 
-/** 紧凑选项块的固定尺寸：等宽让「5 / 10 / 15」三块视觉对齐 */
-private val SnoozeChipWidth = 38.dp
+/**
+ * 紧凑选项块的固定尺寸。
+ *
+ * 全部等宽 30dp，保证「5 / 10 / 15」与「1 / 3 / 5」六块尺寸完全一致；
+ * 宽度压到 30dp 也是为了两组选项并排后不会挤占右侧空间。
+ */
+private val SnoozeChipWidth = 30.dp
 private val SnoozeChipHeight = 30.dp
 
 /**
