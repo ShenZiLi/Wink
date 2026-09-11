@@ -11,6 +11,11 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -45,7 +50,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -61,6 +69,16 @@ import com.wink.eye.ui.theme.WinkLayoutOverlay
 import dev.chrisbanes.haze.rememberHazeState
 
 /**
+ * 取景卡 ↔ 编辑面板空间交换的过渡参数。
+ *
+ * 单调缓动（FastOutSlowIn）数学上零过冲，不可能产生位置折返；
+ * 250ms 与底部预留高度的插值动画（[bottomReserved]）同长同曲线，
+ * 所有过渡同起同终，杜绝多段动画错峰造成的回弹观感。
+ */
+private val SpaceSwapSpec: FiniteAnimationSpec<IntSize> =
+    tween(durationMillis = 250, easing = FastOutSlowInEasing)
+
+/**
  * 二维码页：上半相机取景、下半编辑面板的单页沉浸式布局。
  *
  * 液态玻璃规范（见 agent.md）：顶栏作为悬浮层叠在内容之上，内容层打 `winkGlassSource`，
@@ -71,6 +89,8 @@ import dev.chrisbanes.haze.rememberHazeState
 fun QrToolScreen(viewModel: QrToolViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val themeMode by ThemeManager.themeMode.collectAsState(initial = ThemeMode.LIGHT)
 
     // 相机权限只在进入本页时申请，不放进 MainActivity 的启动流程
@@ -148,6 +168,24 @@ fun QrToolScreen(viewModel: QrToolViewModel) {
         derivedStateOf { imeInsets.getBottom(density) > 0 }
     }
 
+    // 生成二维码后即使键盘还没收完，也要立刻为取景区腾出空间：
+    // 二维码叠加层画在取景卡内部，键盘期间取景卡是 0 高，叠加层会完全看不见。
+    // 只等 imeVisible 翻转会有 200~300ms 的空窗期。
+    val cameraAreaExpanded = !imeVisible || state.showGeneratedQr
+
+    // 底部导航栏预留高度跟随布局态插值：0 ↔ 100dp 的阶跃会撞上取景卡展开动画，
+    // 让面板内容在过渡末端再跳一下，表现成第二次回弹。
+    // 250ms 与 SpaceSwapSpec 同长同曲线，两段过渡同步结束
+    val bottomReserved by animateDpAsState(
+        targetValue = if (cameraAreaExpanded) {
+            WinkLayoutOverlay.BottomBarOverlayHeight - 16.dp
+        } else {
+            0.dp
+        },
+        animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
+        label = "qr_bottom_reserved"
+    )
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
@@ -174,33 +212,38 @@ fun QrToolScreen(viewModel: QrToolViewModel) {
                     onRequestPermission = requestOrGuideCamera,
                     modifier = Modifier
                         .fillMaxWidth()
+                        // animateContentSize 必须包在 weight/height 切换层的外侧：
+                        // 它动画化「汇报给父级的尺寸」，让 flex ↔ 0 高的突变变成平滑推拉
+                        .animateContentSize(animationSpec = SpaceSwapSpec)
                         // 键盘弹出时压成 0 高而不是移出组合树：
                         // 移出会连带关闭 ML Kit 分析器与执行器，键盘一开一关就重建一次相机
                         .then(
-                            if (imeVisible) Modifier.height(0.dp) else Modifier.weight(1f)
+                            if (cameraAreaExpanded) Modifier.weight(1f) else Modifier.height(0.dp)
                         )
                         .padding(
                             start = 16.dp,
                             end = 16.dp,
-                            top = if (imeVisible) 0.dp else 8.dp,
-                            bottom = if (imeVisible) 0.dp else 8.dp
+                            top = if (cameraAreaExpanded) 8.dp else 0.dp,
+                            bottom = if (cameraAreaExpanded) 8.dp else 0.dp
                         )
                 )
 
-                // 取景框让位后，用弹性占位把编辑面板压到键盘正上方
-                if (imeVisible) Spacer(Modifier.weight(1f))
-
                 QrEditPanel(
+                    // 键盘弹出时面板占满顶栏下方的全部剩余空间，文本框随之拉伸，
+                    // 顶到顶栏下方，方便查看和编辑内容
+                    expanded = !cameraAreaExpanded,
+                    modifier = Modifier
+                        .animateContentSize(animationSpec = SpaceSwapSpec)
+                        .then(
+                            if (!cameraAreaExpanded) Modifier.weight(1f) else Modifier
+                        )
+                        .fillMaxWidth(),
                     text = state.text,
                     copied = state.copied,
                     canUndo = state.canUndo,
                     canRedo = state.canRedo,
-                    // 键盘弹出时底部导航栏被遮挡，无需再留白
-                    bottomReservedHeight = if (imeVisible) {
-                        0.dp
-                    } else {
-                        WinkLayoutOverlay.BottomBarOverlayHeight - 16.dp
-                    },
+                    // 跟随布局态插值（见 bottomReserved 定义处）
+                    bottomReservedHeight = bottomReserved,
                     onTextChanged = viewModel::onTextChanged,
                     onClear = viewModel::onClear,
                     onBackspace = viewModel::onBackspace,
@@ -212,7 +255,13 @@ fun QrToolScreen(viewModel: QrToolViewModel) {
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
                     },
-                    onGenerate = viewModel::onGenerateQr
+                    onGenerate = {
+                        // 先把焦点交出去再收键盘：只调 hide() 时部分 ROM 会因为
+                        // 输入框仍有焦点而立刻把输入法重新弹回来
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                        viewModel.onGenerateQr()
+                    }
                 )
             }
 

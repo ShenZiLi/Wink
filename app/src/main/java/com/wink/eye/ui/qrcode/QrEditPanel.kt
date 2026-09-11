@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -76,6 +77,11 @@ fun QrEditPanel(
     canUndo: Boolean,
     canRedo: Boolean,
     bottomReservedHeight: Dp,
+    /**
+     * 展开模式：键盘弹出时由调用方传 true。面板占满顶栏下方的全部剩余空间，
+     * 文本框随之拉伸并放开行数上限，方便查看与编辑长内容。
+     */
+    expanded: Boolean,
     onTextChanged: (String) -> Unit,
     onClear: () -> Unit,
     onBackspace: () -> Unit,
@@ -95,7 +101,9 @@ fun QrEditPanel(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                // 只有展开模式才撑满：无条件 fillMaxSize 会在非展开时把
+                // Column 里 weight(1f) 的相机卡的剩余空间全部抢走（非 weight 子先测量）
+                .then(if (expanded) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp)
         ) {
             // 工具行：左侧标签 + 右侧 5 个紧凑操作
@@ -161,7 +169,9 @@ fun QrEditPanel(
             OutlinedTextField(
                 value = text,
                 onValueChange = onTextChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (expanded) Modifier.weight(1f) else Modifier),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
                     fontSize = MaterialTheme.typography.bodyMedium.fontSize
@@ -175,7 +185,7 @@ fun QrEditPanel(
                 },
                 shape = RoundedCornerShape(12.dp),
                 minLines = 2,
-                maxLines = 3
+                maxLines = if (expanded) Int.MAX_VALUE else 3
             )
 
             Spacer(Modifier.height(8.dp))

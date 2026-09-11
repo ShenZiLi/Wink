@@ -256,15 +256,13 @@ class QrToolViewModel : ViewModel() {
     // region 生成二维码
 
     /**
-     * 生成 / 关闭二维码叠加层。
+     * 生成二维码并在取景框中展示。
      *
-     * 按钮同时承担「生成」与「关闭」职责，状态由 [QrToolUiState.showGeneratedQr] 单一驱动。
+     * 按钮只承担「生成 / 刷新」职责：叠加层已显示时再次点击按当前文本重新渲染，
+     * 不做开关切换。关闭叠加层只走 [onHideQr]（取景框上的关闭按钮），
+     * 两个职责分开后「想换个内容重生成」和「想关掉」不会互相打架。
      */
     fun onGenerateQr() {
-        if (_uiState.value.showGeneratedQr) {
-            onHideQr()
-            return
-        }
         val text = _uiState.value.text
         if (text.isEmpty()) {
             emitMessage(R.string.qr_empty_text)

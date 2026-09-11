@@ -38,19 +38,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,9 +67,9 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -390,10 +390,11 @@ private fun ScanSuccessOverlay(visible: Boolean, modifier: Modifier = Modifier) 
 }
 
 /**
- * 生成二维码叠加层：半透明蒙层 + 白色圆角卡 + 二维码 + 保存按钮。
+ * 生成二维码叠加层：半透明蒙层 + 白色圆角卡 + 二维码 + 右下角图标操作。
  *
- * 二维码本体必须保持纯黑白（染色会降低识别率），因此这里用白色卡片承载，
- * 在亮色与暗色主题下都是同一种呈现。
+ * 二维码本体必须保持纯黑白（染色会降低识别率），因此这里用白色卡片承载。
+ * 保存 / 关闭收成右下角的图标按钮，把展示空间尽量留给二维码；
+ * 点击蒙层空白不再关闭 —— 关闭只走右下角的关闭按钮，避免误触。
  */
 @Composable
 private fun QrGeneratedOverlay(
@@ -405,48 +406,75 @@ private fun QrGeneratedOverlay(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.88f))
+            .background(Color.Black.copy(alpha = 0.88f)),
+        contentAlignment = Alignment.Center
+    ) {
+        // 二维码边长跟随卡片尺寸收缩，小屏或压缩布局下也不会溢出；
+        // 高度方向先扣掉右下角图标区的预留再取占比，保证白卡与图标永不重叠
+        val actionReserve = 96.dp
+        val usableHeight = maxHeight - actionReserve
+        val qrSide = (minOf(maxWidth.value, usableHeight.value) * 0.7f).dp
+        Box(
+            modifier = Modifier
+                .background(Color.White, RoundedCornerShape(16.dp))
+                .padding(16.dp)
+        ) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = stringResource(R.string.qr_generated),
+                modifier = Modifier.size(qrSide)
+            )
+        }
+
+        // 右下角图标操作：保存到相册 / 关闭
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            QrOverlayIconAction(
+                icon = Icons.Default.Save,
+                contentDescription = stringResource(R.string.qr_save_to_gallery),
+                onClick = onSave
+            )
+            QrOverlayIconAction(
+                icon = Icons.Default.Close,
+                contentDescription = stringResource(R.string.qr_close),
+                onClick = onHide
+            )
+        }
+    }
+}
+
+/**
+ * 叠加层内的图标操作：只保留白色图标本身，不带任何底色。
+ *
+ * 黑色蒙层保证白图标对比度；44dp 触达区略大于视觉图标，
+ * 不用 `Surface(onClick = ...)`：那一重载强制 48dp 最小点击尺寸并带 Material 表面色。
+ */
+@Composable
+private fun QrOverlayIconAction(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onHide
+                onClick = onClick
             ),
         contentAlignment = Alignment.Center
     ) {
-        // 二维码边长跟随卡片尺寸收缩，小屏或压缩布局下也不会溢出
-        val qrSide = (minOf(maxWidth.value, maxHeight.value) * 0.55f).dp
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .background(Color.White, RoundedCornerShape(16.dp))
-                    .padding(16.dp)
-            ) {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = stringResource(R.string.qr_generated),
-                    modifier = Modifier.size(qrSide)
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = onSave) {
-                Icon(
-                    imageVector = Icons.Default.Save,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.size(8.dp))
-                Text(
-                    text = stringResource(R.string.qr_save_to_gallery),
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            TextButton(onClick = onHide) {
-                Text(text = stringResource(R.string.qr_close), color = Color.White)
-            }
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = Color.White,
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
 
