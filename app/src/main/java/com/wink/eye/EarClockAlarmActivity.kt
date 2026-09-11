@@ -155,6 +155,8 @@ class EarClockAlarmActivity : ComponentActivity() {
             } catch (_: Exception) {}
             release()
         }
+        // 震动是循环播放的，没有这一步会在铃声停止后继续震
+        EarClockAudioHelper.cancelVibration(this)
     }
 
     override fun onDestroy() {
