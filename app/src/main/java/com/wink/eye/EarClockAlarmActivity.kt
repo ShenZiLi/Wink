@@ -51,12 +51,12 @@ class EarClockAlarmActivity : ComponentActivity() {
         val isSnooze = intent.getBooleanExtra(EarClockAlarmScheduler.EXTRA_IS_SNOOZE, false)
         val snoozeCount = intent.getIntExtra(EarClockAlarmScheduler.EXTRA_SNOOZE_COUNT, 0)
 
-        // 锁屏上显示
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        )
+        // 锁屏上直接显示并点亮屏幕。
+        // FLAG_SHOW_WHEN_LOCKED / FLAG_TURN_SCREEN_ON 自 API 27 起已废弃、在新系统上可能被忽略，
+        // 改用 Activity 的 setShowWhenLocked / setTurnScreenOn（语义等价、官方推荐）
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val player = EarClockAudioHelper.playAlarm(
             this,

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.wink.eye.MainActivity
 import com.wink.eye.data.EarClockAlarm
 import com.wink.eye.data.EarClockFrequency
 import com.wink.eye.data.WorkdayType
@@ -55,7 +56,8 @@ object EarClockAlarmScheduler {
         // 并会在状态栏展示闹钟图标（符合闹钟语义）。
         // 实测 setExactAndAllowWhileIdle 在 ColorOS 上会被塞进约 24 秒的触发窗口。
         alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(triggerAtMs, null),
+            // showIntent：用户点击状态栏闹钟图标时回到应用（原先传 null，图标点了没反应）
+            AlarmManager.AlarmClockInfo(triggerAtMs, buildShowIntent(context)),
             pendingIntent
         )
     }
@@ -74,6 +76,19 @@ object EarClockAlarmScheduler {
         return PendingIntent.getBroadcast(
             context,
             alarm.id.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** 状态栏闹钟图标被点击时的入口 */
+    private fun buildShowIntent(context: Context): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        return PendingIntent.getActivity(
+            context,
+            0,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
