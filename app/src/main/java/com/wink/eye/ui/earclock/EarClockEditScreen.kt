@@ -531,13 +531,11 @@ private fun SettingsCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
+                    // 两段分列左右：间隔靠左、次数靠右
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 左右两段等分，标签与选项块对齐
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             stringResource(R.string.earclock_edit_snooze_minutes_short),
                             style = MaterialTheme.typography.labelMedium,
@@ -553,10 +551,7 @@ private fun SettingsCard(
                             Spacer(Modifier.width(4.dp))
                         }
                     }
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             stringResource(R.string.earclock_edit_snooze_times_short),
                             style = MaterialTheme.typography.labelMedium,
@@ -578,10 +573,14 @@ private fun SettingsCard(
     }
 }
 
+/** 紧凑选项块的固定尺寸：等宽让「5 / 10 / 15」三块视觉对齐 */
+private val SnoozeChipWidth = 38.dp
+private val SnoozeChipHeight = 30.dp
+
 /**
  * 稍后提醒板块内的紧凑选项块。
  *
- * 比 Material3 的 FilterChip 更矮更窄（30dp / 横向 9dp），
+ * 比 Material3 的 FilterChip 更矮更窄（30dp 高、等宽 38dp），
  * 用于把「间隔」与「次数」两组选项压进同一行，避免各占一行。
  */
 @Composable
@@ -590,7 +589,9 @@ private fun SnoozeOptionChip(text: String, selected: Boolean, onClick: () -> Uni
     // 六块并排后会超出屏幕宽度，导致最右侧选项被裁切
     Surface(
         modifier = Modifier
-            .height(30.dp)
+            // 固定宽度，保证「5 / 10 / 15」三块等宽；高度 30dp 比 FilterChip 更紧凑
+            .width(SnoozeChipWidth)
+            .height(SnoozeChipHeight)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -609,9 +610,7 @@ private fun SnoozeOptionChip(text: String, selected: Boolean, onClick: () -> Uni
         }
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(horizontal = 10.dp),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
             Text(
