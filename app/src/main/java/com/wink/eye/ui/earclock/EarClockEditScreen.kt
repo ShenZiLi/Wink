@@ -2,7 +2,10 @@ package com.wink.eye.ui.earclock
 
 import android.content.Intent
 import android.media.RingtoneManager
+import android.content.Context
 import android.net.Uri
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -99,7 +102,8 @@ fun EarClockEditScreen(
     var frequency by remember { mutableStateOf(existingAlarm?.frequency ?: EarClockFrequency.ONCE) }
     var daysOfWeek by remember { mutableStateOf(existingAlarm?.daysOfWeek ?: emptySet()) }
     var ringtoneUri by remember { mutableStateOf(existingAlarm?.ringtoneUri) }
-    var ringtoneName by remember { mutableStateOf<String?>(null) }
+    // 编辑已有闹钟时解析当前铃声名，否则界面永远显示「默认」
+    var ringtoneName by remember { mutableStateOf(ringtoneTitle(context, existingAlarm?.ringtoneUri)) }
     var vibrationOn by remember { mutableStateOf(existingAlarm?.vibrationMode != VibrationMode.OFF) }
     var snoozeEnabled by remember { mutableStateOf(existingAlarm?.snoozeEnabled ?: true) }
     var snoozeMinutes by remember { mutableIntStateOf(existingAlarm?.snoozeMinutes ?: 5) }
@@ -108,10 +112,18 @@ fun EarClockEditScreen(
     val ringtoneLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val uri: Uri? = result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        // getParcelableExtra(String) 自 API 33 起废弃，Android 13+ 在无法推断 extras 类型时
+        // 会直接返回 null，必须显式传入 Class。
+        // 漏掉这一点会让选中的铃声永远读不回来（表现为「铃声无法自定义」）。
+        val uri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        }
         if (uri != null) {
             ringtoneUri = uri.toString()
-            ringtoneName = RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+            ringtoneName = ringtoneTitle(context, uri.toString())
         }
     }
 
@@ -230,7 +242,15 @@ fun EarClockEditScreen(
                         putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
                         putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, ringtoneUri)
                     }
-                    ringtoneLauncher.launch(intent)
+                    // 部分厂商 ROM 未提供系统铃声选择器，避免直接崩溃
+                    runCatching { ringtoneLauncher.launch(intent) }
+                        .onFailure {
+                            Toast.makeText(
+                                context,
+                                R.string.earclock_ringtone_picker_missing,
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                 },
                 vibrationOn = vibrationOn,
                 onVibrationChange = { vibrationOn = it },
@@ -571,6 +591,14 @@ private fun SettingsCard(
             }
         }
     }
+}
+
+/** 解析铃声显示名；解析失败返回 null，界面回退到「默认」文案 */
+private fun ringtoneTitle(context: Context, uriString: String?): String? {
+    if (uriString.isNullOrBlank()) return null
+    return runCatching {
+        RingtoneManager.getRingtone(context, Uri.parse(uriString))?.getTitle(context)
+    }.getOrNull()
 }
 
 /**

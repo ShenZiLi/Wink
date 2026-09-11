@@ -127,6 +127,7 @@
     <string name="earclock_edit_snooze_times_short">次数</string>
     <string name="earclock_edit_snooze_times_label">%1$d 次</string>
     <string name="earclock_edit_snooze_on" translatable="false">已开启</string>
+    <string name="earclock_ringtone_picker_missing">未找到系统铃声选择器</string>
 
     <!-- 全屏闹钟页 -->
     <string name="earclock_playing_in_headphone">已在耳机中播放闹铃</string>
