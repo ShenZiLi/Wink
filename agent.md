@@ -155,7 +155,7 @@ implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7") // collectA
 > ML Kit 的 bundled AAR 约 9.9MB，APK 因此增大约 13MB。换 unbundled 版会引入运行时 GMS 下载，不划算。
 
 ## Git 提交约定
-- **每次功能改动完成后，立即将改动提交到本地 git。**（commit 到本地仓库，无需推送远端）
+- **每次变更完成后，立即将改动提交到本地 git。**（commit 到本地仓库，无需推送远端）
 - 提交信息用中文、简洁描述本次改动内容与目的。
 - 提交前先 `git add` 本次改动涉及的具体文件，避免误提交无关文件或敏感文件（如密钥）。
 - 除非用户明确要求，否则不主动 push 到远端。

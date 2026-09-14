@@ -38,6 +38,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -77,11 +79,8 @@ fun QrEditPanel(
     canUndo: Boolean,
     canRedo: Boolean,
     bottomReservedHeight: Dp,
-    /**
-     * 展开模式：键盘弹出时由调用方传 true。面板占满顶栏下方的全部剩余空间，
-     * 文本框随之拉伸并放开行数上限，方便查看与编辑长内容。
-     */
-    expanded: Boolean,
+    /** 与父布局共用同一个进度，避免底部留白单独启动动画。 */
+    expansion: () -> Float,
     onTextChanged: (String) -> Unit,
     onClear: () -> Unit,
     onBackspace: () -> Unit,
@@ -101,9 +100,7 @@ fun QrEditPanel(
     ) {
         Column(
             modifier = Modifier
-                // 只有展开模式才撑满：无条件 fillMaxSize 会在非展开时把
-                // Column 里 weight(1f) 的相机卡的剩余空间全部抢走（非 weight 子先测量）
-                .then(if (expanded) Modifier.fillMaxSize() else Modifier.fillMaxWidth())
+                .fillMaxSize()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp)
         ) {
             // 工具行：左侧标签 + 右侧 5 个紧凑操作
@@ -171,7 +168,7 @@ fun QrEditPanel(
                 onValueChange = onTextChanged,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (expanded) Modifier.weight(1f) else Modifier),
+                    .weight(1f),
                 textStyle = TextStyle(
                     fontFamily = FontFamily.Monospace,
                     fontSize = MaterialTheme.typography.bodyMedium.fontSize
@@ -185,7 +182,7 @@ fun QrEditPanel(
                 },
                 shape = RoundedCornerShape(12.dp),
                 minLines = 2,
-                maxLines = if (expanded) Int.MAX_VALUE else 3
+                maxLines = Int.MAX_VALUE
             )
 
             Spacer(Modifier.height(8.dp))
@@ -237,7 +234,10 @@ fun QrEditPanel(
             }
 
             // 为悬浮玻璃导航栏让位；面板表面色继续向下延伸到屏幕底边
-            Spacer(Modifier.height(bottomReservedHeight))
+            Spacer(Modifier.layout { _, constraints ->
+                val reserved = (bottomReservedHeight.toPx() * (1f - expansion())).roundToInt()
+                layout(constraints.minWidth, reserved.coerceIn(constraints.minHeight, constraints.maxHeight)) {}
+            })
         }
     }
 }

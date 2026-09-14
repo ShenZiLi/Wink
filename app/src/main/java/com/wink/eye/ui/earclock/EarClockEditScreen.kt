@@ -682,22 +682,26 @@ private fun SettingsCard(
 /**
  * 解析铃声显示名；解析失败返回 null，界面回退到「默认」文案。
  *
- * 系统铃声走 RingtoneManager 取标题；本地自选文件（SAF）没有铃声标题，
- * 退而读取文档的 DISPLAY_NAME（即文件名）。
+ * 优先读取文档的 DISPLAY_NAME，避免部分内容提供方将铃声标题返回成
+ * `audio:1000000070` 这类内部编号。展示时去除扩展名，并将长名称截断。
  */
 private fun ringtoneTitle(context: Context, uriString: String?): String? {
     if (uriString.isNullOrBlank()) return null
     val uri = Uri.parse(uriString)
 
-    runCatching {
-        RingtoneManager.getRingtone(context, uri)?.getTitle(context)
-    }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
-
-    return runCatching {
+    val fileName = runCatching {
         context.contentResolver
             .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
     }.getOrNull()?.takeIf { it.isNotBlank() }
+
+    val title = fileName ?: runCatching {
+        RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+    }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
+
+    return title
+        .substringBeforeLast('.', missingDelimiterValue = title)
+        .let { if (it.length > 10) "${it.take(10)}..." else it }
 }
 
 /**

@@ -11,20 +11,16 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -40,7 +36,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +48,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -69,22 +66,12 @@ import com.wink.eye.ui.theme.WinkLayoutOverlay
 import dev.chrisbanes.haze.rememberHazeState
 
 /**
- * 取景卡 ↔ 编辑面板空间交换的过渡参数。
- *
- * 单调缓动（FastOutSlowIn）数学上零过冲，不可能产生位置折返；
- * 250ms 与底部预留高度的插值动画（[bottomReserved]）同长同曲线，
- * 所有过渡同起同终，杜绝多段动画错峰造成的回弹观感。
- */
-private val SpaceSwapSpec: FiniteAnimationSpec<IntSize> =
-    tween(durationMillis = 250, easing = FastOutSlowInEasing)
-
-/**
  * 二维码页：上半相机取景、下半编辑面板的单页沉浸式布局。
  *
  * 液态玻璃规范（见 agent.md）：顶栏作为悬浮层叠在内容之上，内容层打 `winkGlassSource`，
  * 页面 `Scaffold` 的 `contentWindowInsets` 清零由内容自行处理状态栏留白。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun QrToolScreen(viewModel: QrToolViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -158,111 +145,103 @@ fun QrToolScreen(viewModel: QrToolViewModel) {
     val topBarHazeState = rememberHazeState()
     val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
 
-    // 键盘可见时收起取景框，把空间留给编辑面板，避免相机被压成一条窄缝。
-    // WindowInsets.ime 是 @Composable 取值，必须先拿到实例；
-    // 再套 derivedStateOf 收口：键盘动画期间 insets 逐帧变化，
-    // 直接在组合里比较布尔值会让整个页面每帧重组。
     val imeInsets = WindowInsets.ime
-    val density = LocalDensity.current
-    val imeVisible by remember {
-        derivedStateOf { imeInsets.getBottom(density) > 0 }
+    val imeVisible = WindowInsets.isImeVisible
+    var returningToPreview by remember { mutableStateOf(false) }
+    LaunchedEffect(imeVisible) {
+        if (!imeVisible) returningToPreview = false
     }
-
-    // 生成二维码后即使键盘还没收完，也要立刻为取景区腾出空间：
-    // 二维码叠加层画在取景卡内部，键盘期间取景卡是 0 高，叠加层会完全看不见。
-    // 只等 imeVisible 翻转会有 200~300ms 的空窗期。
-    val cameraAreaExpanded = !imeVisible || state.showGeneratedQr
-
-    // 底部导航栏预留高度跟随布局态插值：0 ↔ 100dp 的阶跃会撞上取景卡展开动画，
-    // 让面板内容在过渡末端再跳一下，表现成第二次回弹。
-    // 250ms 与 SpaceSwapSpec 同长同曲线，两段过渡同步结束
-    val bottomReserved by animateDpAsState(
-        targetValue = if (cameraAreaExpanded) {
-            WinkLayoutOverlay.BottomBarOverlayHeight - 16.dp
-        } else {
-            0.dp
-        },
+    // 生成结果不参与编辑态判断，展示二维码后仍能再次点开文本框。
+    val editorExpanded = imeVisible && !returningToPreview
+    val expansion = animateFloatAsState(
+        targetValue = if (editorExpanded) 1f else 0f,
         animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
-        label = "qr_bottom_reserved"
+        label = "qr_editor_expansion"
     )
+    val density = LocalDensity.current
+    val bottomReserved = WinkLayoutOverlay.BottomBarOverlayHeight - 16.dp
+    // 固定三行的收起高度，编辑文本的换行不再改变面板的落点。
+    val collapsedTextHeight = with(density) {
+        MaterialTheme.typography.bodyMedium.lineHeight.toDp() * 3 + 32.dp
+    }
+    val collapsedPanelHeight = 112.dp + collapsedTextHeight + bottomReserved
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { _ ->
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+            Layout(
                 modifier = Modifier
                     .fillMaxSize()
                     .winkGlassSource(topBarHazeState)
-                    .imePadding()
-                    .padding(top = topBarHeight)
-            ) {
-                QrCameraCard(
-                    // 键盘弹出时暂停取景（释放相机）但保留组件，避免重建
-                    active = !imeVisible,
-                    cameraEnabled = state.cameraEnabled,
-                    hasCameraPermission = state.hasCameraPermission,
-                    scanSuccess = state.scanSuccess,
-                    generatedQr = state.generatedQr,
-                    showGeneratedQr = state.showGeneratedQr,
-                    onHideQr = viewModel::onHideQr,
-                    onSaveQr = { viewModel.onSaveQrToGallery(context) },
-                    onScanResult = viewModel::onScanSuccess,
-                    onRequestPermission = requestOrGuideCamera,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // animateContentSize 必须包在 weight/height 切换层的外侧：
-                        // 它动画化「汇报给父级的尺寸」，让 flex ↔ 0 高的突变变成平滑推拉
-                        .animateContentSize(animationSpec = SpaceSwapSpec)
-                        // 键盘弹出时压成 0 高而不是移出组合树：
-                        // 移出会连带关闭 ML Kit 分析器与执行器，键盘一开一关就重建一次相机
-                        .then(
-                            if (cameraAreaExpanded) Modifier.weight(1f) else Modifier.height(0.dp)
-                        )
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = if (cameraAreaExpanded) 8.dp else 0.dp,
-                            bottom = if (cameraAreaExpanded) 8.dp else 0.dp
-                        )
-                )
+                    .padding(top = topBarHeight),
+                content = {
+                    QrCameraCard(
+                        // 键盘弹出时暂停取景（释放相机）但保留组件，避免重建
+                        active = !imeVisible,
+                        cameraEnabled = state.cameraEnabled,
+                        hasCameraPermission = state.hasCameraPermission,
+                        scanSuccess = state.scanSuccess,
+                        generatedQr = state.generatedQr,
+                        showGeneratedQr = state.showGeneratedQr,
+                        onHideQr = viewModel::onHideQr,
+                        onSaveQr = { viewModel.onSaveQrToGallery(context) },
+                        onScanResult = viewModel::onScanSuccess,
+                        onRequestPermission = requestOrGuideCamera,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
 
-                QrEditPanel(
-                    // 键盘弹出时面板占满顶栏下方的全部剩余空间，文本框随之拉伸，
-                    // 顶到顶栏下方，方便查看和编辑内容
-                    expanded = !cameraAreaExpanded,
-                    modifier = Modifier
-                        .animateContentSize(animationSpec = SpaceSwapSpec)
-                        .then(
-                            if (!cameraAreaExpanded) Modifier.weight(1f) else Modifier
-                        )
-                        .fillMaxWidth(),
-                    text = state.text,
-                    copied = state.copied,
-                    canUndo = state.canUndo,
-                    canRedo = state.canRedo,
-                    // 跟随布局态插值（见 bottomReserved 定义处）
-                    bottomReservedHeight = bottomReserved,
-                    onTextChanged = viewModel::onTextChanged,
-                    onClear = viewModel::onClear,
-                    onBackspace = viewModel::onBackspace,
-                    onCopy = { viewModel.onCopy(context) },
-                    onUndo = viewModel::onUndo,
-                    onRedo = viewModel::onRedo,
-                    onPickFromGallery = {
-                        pickMediaLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onGenerate = {
-                        // 先把焦点交出去再收键盘：只调 hide() 时部分 ROM 会因为
-                        // 输入框仍有焦点而立刻把输入法重新弹回来
-                        focusManager.clearFocus()
-                        keyboardController?.hide()
-                        viewModel.onGenerateQr()
-                    }
+                    QrEditPanel(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = state.text,
+                        copied = state.copied,
+                        canUndo = state.canUndo,
+                        canRedo = state.canRedo,
+                        bottomReservedHeight = bottomReserved,
+                        expansion = { expansion.value },
+                        onTextChanged = viewModel::onTextChanged,
+                        onClear = viewModel::onClear,
+                        onBackspace = viewModel::onBackspace,
+                        onCopy = { viewModel.onCopy(context) },
+                        onUndo = viewModel::onUndo,
+                        onRedo = viewModel::onRedo,
+                        onPickFromGallery = {
+                            pickMediaLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        onGenerate = {
+                            // 先把焦点交出去再收键盘：只调 hide() 时部分 ROM 会因为
+                            // 输入框仍有焦点而立刻把输入法重新弹回来
+                            returningToPreview = true
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            viewModel.onGenerateQr()
+                        }
+                    )
+                }
+            ) { measurables, constraints ->
+                // 只在测量阶段读取动画和 IME 像素；相机尺寸始终稳定，
+                // 面板在它上方覆盖展开，避免逐帧重建取景尺寸与多重尺寸动画追赶。
+                val progress = expansion.value
+                val width = constraints.maxWidth
+                val height = constraints.maxHeight
+                val restingHeight = collapsedPanelHeight.roundToPx().coerceAtMost(height)
+                val cameraHeight = height - restingHeight
+                val panelTop = (cameraHeight * (1f - progress)).roundToInt()
+                val keyboardHeight = imeInsets.getBottom(this).coerceAtMost(height)
+                val panelBottom = height - (keyboardHeight * progress).roundToInt()
+                val camera = measurables[0].measure(Constraints.fixed(width, cameraHeight))
+                val panel = measurables[1].measure(
+                    Constraints.fixed(width, (panelBottom - panelTop).coerceAtLeast(0))
                 )
+                layout(width, height) {
+                    camera.placeRelative(0, 0)
+                    panel.placeRelative(0, panelTop)
+                }
             }
 
             WinkGlassTopBar(

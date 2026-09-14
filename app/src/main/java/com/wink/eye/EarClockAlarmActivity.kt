@@ -1,7 +1,5 @@
 package com.wink.eye
 
-import android.app.NotificationManager
-import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -19,29 +17,22 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.wink.eye.data.EarClockFrequency
-import com.wink.eye.data.VibrationMode
 import com.wink.eye.service.EarClockAlarmScheduler
-import com.wink.eye.service.EarClockAudioHelper
+import com.wink.eye.service.EarClockRingingService
 import java.util.Locale
 
-/** EarClock 全屏闹钟页：连接耳机时循环播放闹铃，提供「立即关闭」与「稍后提醒」 */
+/** EarClock 全屏闹钟页：展示响铃状态，提供「立即关闭」与「稍后提醒」 */
 class EarClockAlarmActivity : ComponentActivity() {
-
-    /** 当前响铃的闹钟 ID，用于退出时清理通知 */
-    private var ringingAlarmId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val alarmId = intent.getStringExtra(EarClockAlarmScheduler.EXTRA_ALARM_ID).also {
-            ringingAlarmId = it
-        }
+        val alarmId = intent.getStringExtra(EarClockAlarmScheduler.EXTRA_ALARM_ID)
         val alarm = alarmId?.let { WinkApp.instance.earClockRepository.getById(it) }
         if (alarm == null) {
             finish()
@@ -58,23 +49,11 @@ class EarClockAlarmActivity : ComponentActivity() {
         setTurnScreenOn(true)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        val player = EarClockAudioHelper.playAlarm(
-            this,
-            alarm.ringtoneUri?.let(Uri::parse),
-            alarm.vibrationMode
-        )
-
         val timeLabel = String.format(Locale.getDefault(), "%02d:%02d", alarm.hour, alarm.minute)
         val canSnooze = alarm.snoozeEnabled && snoozeCount < alarm.snoozeRepeatLimit
 
         setContent {
             val context = LocalContext.current
-            DisposableEffect(Unit) {
-                onDispose {
-                    releasePlayer(player)
-                }
-            }
-
             Column(
                 modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,7 +94,7 @@ class EarClockAlarmActivity : ComponentActivity() {
                 if (canSnooze) {
                     OutlinedButton(
                         onClick = {
-                            releasePlayer(player)
+                            EarClockRingingService.stop(context)
                             EarClockAlarmScheduler.scheduleSnooze(context, alarm, snoozeCount + 1)
                             finish()
                         },
@@ -130,7 +109,7 @@ class EarClockAlarmActivity : ComponentActivity() {
                 }
                 Button(
                     onClick = {
-                        releasePlayer(player)
+                        EarClockRingingService.stop(context)
                         dismiss(context, alarm, isSnooze)
                     },
                     modifier = Modifier.height(56.dp)
@@ -154,23 +133,4 @@ class EarClockAlarmActivity : ComponentActivity() {
         finish()
     }
 
-    private fun releasePlayer(player: android.media.MediaPlayer?) {
-        player?.apply {
-            try {
-                if (isPlaying) stop()
-            } catch (_: Exception) {}
-            release()
-        }
-        // 震动是循环播放的，没有这一步会在铃声停止后继续震
-        EarClockAudioHelper.cancelVibration(this)
-    }
-
-    override fun onDestroy() {
-        // 无论用户以何种方式退出，都必须清掉闹钟通知并停止震动
-        ringingAlarmId?.let {
-            getSystemService(NotificationManager::class.java).cancel(it.hashCode())
-        }
-        EarClockAudioHelper.cancelVibration(this)
-        super.onDestroy()
-    }
 }
