@@ -83,14 +83,15 @@ fun winkGlassStyle(
 
     // Regular：底色跟随主题表面色，保证内容可读；Clear：几乎不着色
     val baseAlpha = when (variant) {
-        WinkGlassVariant.Regular -> if (isDark) 0.58f else 0.66f
+        // 让内容保持主角；玻璃仅为导航信息提供轻薄的可读性托底。
+        WinkGlassVariant.Regular -> if (isDark) 0.40f else 0.46f
         WinkGlassVariant.Clear -> if (isDark) 0.10f else 0.14f
     }.coerceIn(0f, 1f) + tintBoost
 
     // 高光染色：亮色主题用白提亮；暗色主题必须压到极低，
     // 否则在这种「表面色 == 背景色」的深色主题下，玻璃会比背景亮出一整档、显得像贴了块板
     val sheenAlpha = when (variant) {
-        WinkGlassVariant.Regular -> if (isDark) 0.015f else 0.16f
+        WinkGlassVariant.Regular -> if (isDark) 0.012f else 0.10f
         WinkGlassVariant.Clear -> if (isDark) 0.008f else 0.08f
     }
 
@@ -98,7 +99,7 @@ fun winkGlassStyle(
         backgroundColor = scheme.surface.copy(alpha = baseAlpha.coerceIn(0f, 1f)),
         tints = listOf(HazeTint(Color.White.copy(alpha = sheenAlpha))),
         // 磨砂颗粒，避免大面积纯平滑模糊带来的塑料感
-        noiseFactor = 0.015f,
+        noiseFactor = 0.008f,
         blurRadius = blurRadius,
         // 设备不支持模糊时的回退：用不透明底色保证可读性
         fallbackTint = HazeTint(scheme.surface.copy(alpha = 0.94f))
@@ -191,17 +192,17 @@ fun WinkGlassTopBar(
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 阴影负责把玻璃从内容上「抬起来」；亮色主题下玻璃与背景都很浅，仅靠高光描边无法形成边缘定义
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shadowAlpha = if (isDark) 0.28f else 0.16f
+    val shadowAlpha = if (isDark) 0.18f else 0.08f
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 10.dp,
+                elevation = 4.dp,
                 shape = WinkGlassShapes.TopBar,
                 clip = false,
                 ambientColor = Color.Black.copy(alpha = shadowAlpha),
-                spotColor = Color.Black.copy(alpha = shadowAlpha + 0.04f)
+                spotColor = Color.Black.copy(alpha = shadowAlpha + 0.02f)
             )
             .winkGlassSurface(
                 state = hazeState,

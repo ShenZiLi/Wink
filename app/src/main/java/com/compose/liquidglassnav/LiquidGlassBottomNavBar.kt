@@ -100,19 +100,19 @@ fun LiquidGlassBottomNavBar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(barHeight + 24.dp)
-            .padding(horizontal = 20.dp, vertical = 12.dp)
+            .height(barHeight + 20.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 // 浮起的玻璃需要阴影与内容分离，阴影随主题自适应
                 .shadow(
-                    elevation = 12.dp,
+                    elevation = 5.dp,
                     shape = glassShape,
                     clip = false,
-                    ambientColor = Color.Black.copy(alpha = 0.28f),
-                    spotColor = Color.Black.copy(alpha = 0.32f)
+                    ambientColor = Color.Black.copy(alpha = 0.12f),
+                    spotColor = Color.Black.copy(alpha = 0.16f)
                 )
                 .then(glassModifier)
         ) {
