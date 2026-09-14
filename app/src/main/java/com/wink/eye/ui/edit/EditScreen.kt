@@ -36,7 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -449,6 +451,9 @@ private fun SliderSection(
     secondsSteps: Int,
     onUnitChange: (ScreenTimeUnit) -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+    // Slider 使用离散档位；只在跨越档位时触发一次轻触感，避免连续拖动造成震动噪音。
+    var lastHapticValue by remember(unit) { mutableIntStateOf(value.toInt()) }
     val unitLabel = if (unit == ScreenTimeUnit.MINUTES) {
         stringResource(R.string.unit_minutes)
     } else {
@@ -477,7 +482,14 @@ private fun SliderSection(
         }
         Slider(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { nextValue ->
+                val nextStep = nextValue.toInt()
+                if (nextStep != lastHapticValue) {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    lastHapticValue = nextStep
+                }
+                onValueChange(nextValue)
+            },
             valueRange = if (unit == ScreenTimeUnit.MINUTES) minutesRange else secondsRange,
             steps = if (unit == ScreenTimeUnit.MINUTES) minutesSteps else secondsSteps,
             modifier = Modifier.fillMaxWidth()
