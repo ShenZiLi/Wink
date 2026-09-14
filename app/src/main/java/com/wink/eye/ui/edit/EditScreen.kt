@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -96,7 +95,7 @@ fun EditScreen(
 
     val isFormValid = name.isNotBlank() && (ruleTypeIndex == 1 || intervalValue > 0)
 
-    // 顶栏「保存」与底部主按钮共用同一构建逻辑
+    // 顶栏右侧「保存」使用的构建逻辑
     val saveRule: () -> Unit = {
         val ruleType = if (ruleTypeIndex == 0) {
             RuleType.Interval(value = intervalValue, unit = intervalUnit)
@@ -337,21 +336,6 @@ fun EditScreen(
                 }
             }
 
-            // 保存按钮
-            Button(
-                onClick = saveRule,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 8.dp),
-                enabled = isFormValid,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    stringResource(R.string.edit_save),
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
 
         // 悬浮液态玻璃顶栏：叠在表单之上，滚动时内容会从其下方穿过
