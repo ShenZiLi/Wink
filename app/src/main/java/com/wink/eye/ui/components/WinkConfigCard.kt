@@ -1,6 +1,8 @@
 package com.wink.eye.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,16 +20,22 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -102,27 +110,43 @@ fun WinkConfigCard(
     mainValue: String,
     badge: String,
     subtitle: String,
+    leadingIcon: ImageVector = Icons.Default.Timer,
     enabled: Boolean,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
     deleteContentDescription: String,
     onClick: () -> Unit
 ) {
+    val cardInteraction = remember { MutableInteractionSource() }
+    val haptic = LocalHapticFeedback.current
+    val shape = MaterialTheme.shapes.extraLarge
+
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        border = if (enabled) {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
-        } else {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onClick()
         },
+        modifier = Modifier
+            .fillMaxWidth()
+            .winkPressScale(cardInteraction),
+        shape = shape,
+        border = if (enabled) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.28f))
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+        },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (enabled) 3.dp else 0.dp,
+            pressedElevation = 1.dp
+        ),
         colors = CardDefaults.cardColors(
             containerColor = if (enabled) {
-                MaterialTheme.colorScheme.surfaceContainerHigh
+                MaterialTheme.colorScheme.surfaceContainerLowest
             } else {
                 MaterialTheme.colorScheme.surfaceContainerLow
             }
-        )
+        ),
+        interactionSource = cardInteraction
     ) {
         Row(
             modifier = Modifier
@@ -130,6 +154,25 @@ fun WinkConfigCard(
                 .padding(WinkListSpec.CardContentPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHighest
+                },
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = leadingIcon,
+                        contentDescription = null,
+                        tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 // 第一行：主标题
                 Text(
@@ -178,7 +221,13 @@ fun WinkConfigCard(
                     }
                 }
             }
-            Switch(checked = enabled, onCheckedChange = { onToggle() })
+            Switch(
+                checked = enabled,
+                onCheckedChange = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onToggle()
+                }
+            )
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.Delete,

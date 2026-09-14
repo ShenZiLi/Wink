@@ -14,6 +14,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.ModeNight
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -188,6 +190,10 @@ private fun RuleCard(
         mainValue = ruleMainValue(rule),
         badge = typeLabel,
         subtitle = ruleDetail(rule),
+        leadingIcon = when (rule.type) {
+            is RuleType.Interval -> Icons.Default.Timer
+            is RuleType.ScreenTime -> Icons.Default.Visibility
+        },
         enabled = rule.enabled,
         onToggle = onToggle,
         onDelete = onDelete,

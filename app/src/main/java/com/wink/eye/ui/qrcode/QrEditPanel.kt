@@ -3,6 +3,8 @@ package com.wink.eye.ui.qrcode
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -38,7 +40,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -50,9 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.wink.eye.R
+import com.wink.eye.ui.components.winkPressScale
 
 /** 编辑面板顶部圆角，与主题里 large 容器圆角保持一致 */
-private val PanelShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+private val PanelShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
 
 /** 工具图标按钮边长。取 44dp 是在「一行塞下 5 个」与「尽量靠近 48dp 可达性建议」之间取的折中 */
 private val IconActionSize = 44.dp
@@ -61,7 +66,7 @@ private val IconActionSize = 44.dp
 private val IconGlyphSize = 20.dp
 
 /** 底部主行动按钮高度 */
-private val ActionButtonHeight = 44.dp
+private val ActionButtonHeight = 48.dp
 
 /**
  * 二维码页底部编辑面板：内容文本框 + 一行工具按钮 + 一行主操作。
@@ -96,7 +101,9 @@ fun QrEditPanel(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = PanelShape,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        tonalElevation = 2.dp,
+        shadowElevation = 10.dp
     ) {
         Column(
             modifier = Modifier
@@ -117,8 +124,8 @@ fun QrEditPanel(
                 )
                 AnimatedVisibility(
                     visible = copied,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                    enter = fadeIn() + scaleIn(initialScale = 0.88f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.9f)
                 ) {
                     Text(
                         text = stringResource(R.string.qr_copied),
@@ -180,7 +187,7 @@ fun QrEditPanel(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(18.dp),
                 minLines = 2,
                 maxLines = Int.MAX_VALUE
             )
@@ -257,15 +264,21 @@ private fun QrIconAction(
     tint: Color? = null
 ) {
     val baseColor = tint ?: MaterialTheme.colorScheme.onSurfaceVariant
+    val interactionSource = remember { MutableInteractionSource() }
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier = Modifier
             .size(IconActionSize)
             .clip(CircleShape)
+            .winkPressScale(interactionSource, enabled)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
-                onClick = onClick
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }
             ),
         contentAlignment = Alignment.Center
     ) {
