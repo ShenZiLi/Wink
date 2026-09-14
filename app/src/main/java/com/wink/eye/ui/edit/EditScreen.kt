@@ -85,10 +85,14 @@ fun EditScreen(
 
     val isEditing = existingRule != null
 
-    // 预设选中状态
-    val isPreset15 = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 15
-    val isPreset30 = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 30
-    val isPreset1h = ruleTypeIndex == 0 && intervalUnit == IntervalUnit.MINUTES && intervalValue == 60
+    // 快捷项与当前单位联动：秒模式下仍使用 15 / 30 / 60 三个离散档位，
+    // 但文案和写入值均明确属于“秒”，避免分钟预设残留在秒模式。
+    val intervalPresetValues = listOf(15, 30, 60)
+    val intervalPresetUnitLabel = if (intervalUnit == IntervalUnit.MINUTES) {
+        stringResource(R.string.unit_minutes)
+    } else {
+        stringResource(R.string.unit_seconds)
+    }
 
     val isFormValid = name.isNotBlank() && (ruleTypeIndex == 1 || intervalValue > 0)
 
@@ -210,7 +214,9 @@ fun EditScreen(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodyLarge.copy(textAlign = TextAlign.Center),
-                                    modifier = Modifier.width(140.dp)
+                                    modifier = Modifier
+                                        .width(112.dp)
+                                        .height(52.dp)
                                 )
                                 SelectPill(
                                     text = stringResource(R.string.unit_minutes),
@@ -235,30 +241,21 @@ fun EditScreen(
                         ) {
                             SectionLabel(stringResource(R.string.edit_interval_preset_label))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SelectPill(
-                                    text = stringResource(R.string.preset_15min),
-                                    selected = isPreset15,
-                                    onClick = {
-                                        intervalValue = 15; intervalValueText = "15"; intervalUnit = IntervalUnit.MINUTES
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                SelectPill(
-                                    text = stringResource(R.string.preset_30min),
-                                    selected = isPreset30,
-                                    onClick = {
-                                        intervalValue = 30; intervalValueText = "30"; intervalUnit = IntervalUnit.MINUTES
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                SelectPill(
-                                    text = stringResource(R.string.preset_1hour),
-                                    selected = isPreset1h,
-                                    onClick = {
-                                        intervalValue = 60; intervalValueText = "60"; intervalUnit = IntervalUnit.MINUTES
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
+                                intervalPresetValues.forEach { preset ->
+                                    SelectPill(
+                                        text = stringResource(
+                                            R.string.edit_interval_preset_with_unit,
+                                            preset,
+                                            intervalPresetUnitLabel
+                                        ),
+                                        selected = intervalValue == preset,
+                                        onClick = {
+                                            intervalValue = preset
+                                            intervalValueText = preset.toString()
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }

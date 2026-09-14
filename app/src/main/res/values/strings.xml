@@ -34,6 +34,7 @@
     <string name="edit_type_label">规则类型</string>
     <string name="edit_interval_custom_label">自定义间隔</string>
     <string name="edit_interval_preset_label">快捷选项</string>
+    <string name="edit_interval_preset_with_unit">每 %1$d %2$s</string>
     <string name="interval_prefix">每</string>
     <string name="edit_screen_on_label">亮屏时长阈值</string>
     <string name="edit_screen_off_reset_label">暗屏重置时长</string>
