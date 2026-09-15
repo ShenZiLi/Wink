@@ -20,6 +20,10 @@
     <!-- Summary -->
     <string name="summary_interval">每 %1$d %2$s</string>
     <string name="summary_screen_time">亮屏%1$d%2$s / 暗屏重置%3$d%4$s</string>
+    <!-- 卡片主值大字：数值 + 单位 -->
+    <string name="summary_value">%1$d %2$s</string>
+    <!-- 卡片底部描述：亮屏规则的次要参数 -->
+    <string name="summary_screen_off_reset">暗屏重置 %1$d %2$s</string>
 
     <!-- Edit -->
     <string name="edit_title_new">新增规则</string>
@@ -30,6 +34,7 @@
     <string name="edit_type_label">规则类型</string>
     <string name="edit_interval_custom_label">自定义间隔</string>
     <string name="edit_interval_preset_label">快捷选项</string>
+    <string name="edit_interval_preset_with_unit">每 %1$d %2$s</string>
     <string name="interval_prefix">每</string>
     <string name="edit_screen_on_label">亮屏时长阈值</string>
     <string name="edit_screen_off_reset_label">暗屏重置时长</string>
@@ -76,4 +81,103 @@
     <!-- Theme -->
     <string name="theme_light">亮色</string>
     <string name="theme_dark">暗色</string>
+
+    <!-- EarClock 首页 -->
+    <string name="earclock_home_title">EarClock</string>
+    <string name="earclock_add">添加闹钟</string>
+    <string name="earclock_delete">删除</string>
+    <string name="earclock_empty_title">暂无闹钟</string>
+    <string name="earclock_empty_subtitle">点击右上角 + 添加耳机闹钟</string>
+    <string name="earclock_dialog_delete_title">删除闹钟</string>
+    <string name="earclock_dialog_delete_message">确定要删除闹钟「%1$s」吗？</string>
+    <string name="earclock_dialog_delete_confirm">删除</string>
+    <string name="earclock_dialog_delete_cancel">取消</string>
+    <string name="earclock_default_name">耳机闹钟</string>
+
+    <!-- 星期 -->
+    <string name="day_mon">一</string>
+    <string name="day_tue">二</string>
+    <string name="day_wed">三</string>
+    <string name="day_thu">四</string>
+    <string name="day_fri">五</string>
+    <string name="day_sat">六</string>
+    <string name="day_sun">日</string>
+
+    <!-- 频率 -->
+    <string name="earclock_freq_once">响一次</string>
+    <string name="earclock_freq_workdays">工作日</string>
+    <string name="earclock_freq_custom">自定义</string>
+
+    <!-- 设置闹钟页 -->
+    <string name="earclock_edit_title">设置闹钟</string>
+    <string name="earclock_edit_cancel">取消</string>
+    <string name="earclock_edit_done">完成</string>
+    <string name="earclock_countdown_prefix">距离下次响铃还有</string>
+    <string name="earclock_edit_days_label">重复星期</string>
+    <string name="earclock_edit_workday_type">工作日类型</string>
+    <string name="earclock_edit_workday_weekdays">周一至周五</string>
+    <string name="earclock_edit_name_label">闹钟名称</string>
+    <string name="earclock_edit_ringtone">铃声</string>
+    <string name="earclock_edit_ringtone_default">系统默认闹铃</string>
+    <string name="earclock_edit_vibration">振动</string>
+    <string name="earclock_edit_snooze">稍后提醒</string>
+    <string name="earclock_edit_snooze_interval">提醒间隔</string>
+    <string name="earclock_edit_snooze_limit">最大次数</string>
+    <!-- 稍后提醒参数行的短标签：把两组选项压进同一行 -->
+    <string name="earclock_edit_snooze_minutes_short">间隔</string>
+    <string name="earclock_edit_snooze_times_short">次数</string>
+    <string name="earclock_edit_snooze_times_label">%1$d 次</string>
+    <string name="earclock_edit_snooze_on" translatable="false">已开启</string>
+    <string name="earclock_ringtone_picker_missing">未找到系统铃声选择器</string>
+    <string name="earclock_ringtone_source_title">选择铃声来源</string>
+    <string name="earclock_ringtone_source_system">系统铃声</string>
+    <string name="earclock_ringtone_source_system_desc">从系统内置铃声与媒体库中挑选</string>
+    <string name="earclock_ringtone_source_local">本地音乐</string>
+    <string name="earclock_ringtone_source_local_desc">从文件中选择音频，支持任意音乐文件</string>
+
+    <!-- 全屏闹钟页 -->
+    <string name="earclock_playing_in_headphone">已在耳机中播放闹铃</string>
+    <string name="earclock_snooze">稍后提醒</string>
+    <string name="earclock_dismiss">立即关闭</string>
+    <string name="earclock_snooze_times">稍后提醒 %1$d 次</string>
+    <string name="earclock_notification_title">EarClock 闹钟</string>
+    <string name="earclock_notification_text">%1$s 时间到</string>
+    <string name="earclock_channel_name">耳机闹钟</string>
+    <string name="earclock_channel_desc">连接耳机时通过耳机播放的闹钟</string>
+
+    <!-- 二维码页 -->
+    <string name="qr_home_title">QRCode</string>
+    <string name="qr_camera_on">开启摄像头</string>
+    <string name="qr_camera_off">关闭摄像头</string>
+    <string name="qr_camera_off_placeholder">摄像头已关闭</string>
+    <string name="qr_grant_camera">开启相机</string>
+    <string name="qr_permission_denied">相机权限被拒绝</string>
+    <string name="qr_permission_denied_hint">点击前往系统设置授权</string>
+    <string name="qr_scan_hint">将二维码对准取景框</string>
+    <string name="qr_scan_success">已识别</string>
+
+    <!-- 二维码页 · 编辑面板 -->
+    <string name="qr_editor_label">内容</string>
+    <string name="qr_editor_hint">扫描结果将在此显示，也可直接输入生成二维码</string>
+    <string name="qr_clear">清空</string>
+    <string name="qr_backspace">退格</string>
+    <string name="qr_copy">复制</string>
+    <string name="qr_copied">已复制</string>
+    <string name="qr_undo">撤销</string>
+    <string name="qr_redo">恢复</string>
+    <string name="qr_pick_from_gallery">从相册识别</string>
+    <string name="qr_generate">生成二维码</string>
+
+    <!-- 二维码页 · 生成与保存 -->
+    <string name="qr_close">关闭二维码</string>
+    <string name="qr_generated">已生成二维码</string>
+    <string name="qr_empty_text">请先输入内容</string>
+    <string name="qr_too_long">内容过长，无法生成二维码</string>
+    <string name="qr_save_to_gallery">保存到相册</string>
+    <string name="qr_saved">已保存到相册 Pictures/Wink</string>
+    <string name="qr_save_failed">保存失败</string>
+
+    <!-- 二维码页 · 相册识别 -->
+    <string name="qr_not_found_in_image">图片中未找到二维码</string>
+    <string name="qr_gallery_failed">图片读取失败</string>
 </resources>

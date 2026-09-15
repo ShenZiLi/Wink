@@ -22,8 +22,14 @@ jobs:
           distribution: "temurin"
           java-version: 17
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # runner 镜像自带 Android SDK；旧版 setup-android action 会执行
+      # sdkmanager tools，而 legacy tools 包已从 SDK 仓库下架，故改为本地接受 license
+      - name: Accept Android SDK licenses
+        run: |
+          SDKMANAGER=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)
+          echo "using $SDKMANAGER"
+          "$SDKMANAGER" --list > /dev/null || true
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
 
       - name: Decode keystore
         run: |

@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -12,13 +13,41 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.compose.liquidglassnav.LiquidGlassBottomNavBar
+import com.compose.liquidglassnav.NavItem
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.wink.eye.data.IntervalUnit
 import com.wink.eye.data.Rule
@@ -26,11 +55,18 @@ import com.wink.eye.data.RuleRepository
 import com.wink.eye.data.RuleType
 import com.wink.eye.service.IntervalAlarmScheduler
 import com.wink.eye.service.ScreenMonitorService
+import com.wink.eye.ui.components.winkGlassSource
 import com.wink.eye.ui.edit.EditScreen
+import com.wink.eye.ui.earclock.EarClockEditScreen
+import com.wink.eye.ui.earclock.EarClockHomeScreen
+import com.wink.eye.ui.earclock.EarClockHomeViewModel
 import com.wink.eye.ui.home.HomeScreen
 import com.wink.eye.ui.home.HomeViewModel
+import com.wink.eye.ui.qrcode.QrToolScreen
+import com.wink.eye.ui.qrcode.QrToolViewModel
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.WinkTheme
+import dev.chrisbanes.haze.rememberHazeState
 
 class MainActivity : ComponentActivity() {
 
@@ -38,6 +74,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         Log.d(TAG, "通知权限结果: $granted")
+    }
+
+    private val bluetoothPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        Log.d(TAG, "蓝牙权限结果: $granted")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,6 +105,28 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // 蓝牙权限 (Android 12+)：读取已连接的音频输出设备需要，
+        // 缺失会导致 EarClock 检测不到蓝牙耳机而直接静默跳过闹钟
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                bluetoothPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            }
+        }
+
+        // 悬浮窗权限：持有后闹钟可在后台直接唤起全屏页。
+        // 缺失时若厂商 ROM 又拒绝「全屏通知」，闹钟就只剩一条普通通知，需要用户点一下才响。
+        if (!Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "缺少悬浮窗权限，引导用户开启（影响闹钟自动全屏弹出）")
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        }
+
         // 检查精确闹钟权限 (Android 12+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = getSystemService(AlarmManager::class.java)
@@ -84,46 +148,179 @@ fun WinkNavHost(repository: RuleRepository) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory())
+    val earClockViewModel: EarClockHomeViewModel = viewModel(factory = EarClockHomeViewModel.Factory())
+    // 二维码页的 ViewModel 同样建在 NavHost 顶层（Activity 作用域），
+    // 这样切到别的 Tab 再回来，文本框内容仍然保留
+    val qrToolViewModel: QrToolViewModel = viewModel()
+    val earClockRepository = WinkApp.instance.earClockRepository
 
-    NavHost(navController = navController, startDestination = "home") {
-        composable("home") {
-            // 每次进入首页时重新加载规则
-            LaunchedEffect(Unit) {
-                homeViewModel.loadRules()
+    // 底部悬浮导航栏的玻璃采样源：由 NavHost 内的页面内容提供被模糊的画面
+    val bottomBarHazeState = rememberHazeState()
+
+    // 底部导航栏仅在主页面显示
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val showBottomBar = currentRoute == "home" ||
+        currentRoute == "earclock" ||
+        currentRoute == "qrcode"
+
+    // 键盘弹出时隐藏底部导航栏：它悬浮在窗口底部、不参与页面内容的 IME 避让，
+    // 留在原地会被输入法顶部的候选栏切掉一截（二维码页有文本输入，必然遇到）。
+    // 与 iOS 标签栏在键盘弹出时收起的行为一致。
+    // WindowInsets.ime 是 @Composable 取值，必须先拿到实例；
+    // 再套 derivedStateOf 收口：键盘动画期间 insets 逐帧变化，
+    // 直接在组合里比较布尔值会让整个 NavHost 每帧重组。
+    val imeInsets = WindowInsets.ime
+    val density = LocalDensity.current
+    val imeVisible by remember {
+        derivedStateOf { imeInsets.getBottom(density) > 0 }
+    }
+
+    val navItems = remember {
+        listOf(
+            NavItem(
+                icon = Icons.Outlined.Visibility,
+                activeIcon = Icons.Filled.Visibility,
+                label = "Wink",
+                route = "home"
+            ),
+            NavItem(
+                icon = Icons.Outlined.Headphones,
+                activeIcon = Icons.Filled.Headphones,
+                label = "EarClock",
+                route = "earclock"
+            ),
+            NavItem(
+                icon = Icons.Outlined.QrCodeScanner,
+                activeIcon = Icons.Filled.QrCodeScanner,
+                label = "QRCode",
+                route = "qrcode"
+            )
+        )
+    }
+
+    val selectedIndex = when (currentRoute) {
+        "home" -> 0
+        "earclock" -> 1
+        "qrcode" -> 2
+        else -> 0
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = "home",
+                modifier = Modifier
+                    .padding(innerPadding)
+                    // 页面内容作为底部导航栏玻璃的采样源（不产生视觉变化）
+                    .winkGlassSource(bottomBarHazeState),
+                enterTransition = { fadeIn(tween(300)) },
+                exitTransition = { fadeOut(tween(250)) },
+                popEnterTransition = { fadeIn(tween(300)) },
+                popExitTransition = { fadeOut(tween(250)) }
+            ) {
+                composable("home") {
+                    LaunchedEffect(Unit) { homeViewModel.loadRules() }
+                    HomeScreen(
+                        onAddRule = { navController.navigate("edit/new") },
+                        onEditRule = { id -> navController.navigate("edit/$id") },
+                        viewModel = homeViewModel
+                    )
+                }
+                composable("edit/new") {
+                    EditScreen(
+                        existingRule = null,
+                        onSave = { rule ->
+                            repository.save(rule)
+                            onRuleSaved(context, rule)
+                            homeViewModel.loadRules()
+                            navController.popBackStack()
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("edit/{ruleId}") { backStackEntry ->
+                    val ruleId = backStackEntry.arguments?.getString("ruleId") ?: return@composable
+                    val rule = repository.getById(ruleId)
+                    EditScreen(
+                        existingRule = rule,
+                        onSave = { updatedRule ->
+                            repository.save(updatedRule)
+                            onRuleSaved(context, updatedRule)
+                            homeViewModel.loadRules()
+                            navController.popBackStack()
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("earclock") {
+                    LaunchedEffect(Unit) { earClockViewModel.loadAlarms() }
+                    EarClockHomeScreen(
+                        onAddAlarm = { navController.navigate("earclock/edit/new") },
+                        onEditAlarm = { alarmId -> navController.navigate("earclock/edit/$alarmId") },
+                        viewModel = earClockViewModel
+                    )
+                }
+                composable("qrcode") {
+                    QrToolScreen(viewModel = qrToolViewModel)
+                }
+                composable("earclock/edit/new") {
+                    EarClockEditScreen(
+                        existingAlarm = null,
+                        onSave = { alarm ->
+                            earClockViewModel.saveAlarm(alarm)
+                            navController.popBackStack()
+                        },
+                        onCancel = { navController.popBackStack() }
+                    )
+                }
+                composable("earclock/edit/{alarmId}") { backStackEntry ->
+                    val alarmId = backStackEntry.arguments?.getString("alarmId") ?: return@composable
+                    val alarm = earClockRepository.getById(alarmId)
+                    EarClockEditScreen(
+                        existingAlarm = alarm,
+                        onSave = { updatedAlarm ->
+                            earClockViewModel.saveAlarm(updatedAlarm)
+                            navController.popBackStack()
+                        },
+                        onCancel = { navController.popBackStack() }
+                    )
+                }
             }
-            HomeScreen(
-                onAddRule = { navController.navigate("edit/new") },
-                onEditRule = { id -> navController.navigate("edit/$id") },
-                viewModel = homeViewModel
-            )
         }
 
-        composable("edit/new") {
-            EditScreen(
-                existingRule = null,
-                onSave = { rule ->
-                    repository.save(rule)
-                    onRuleSaved(context, rule)
-                    homeViewModel.loadRules()
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable("edit/{ruleId}") { backStackEntry ->
-            val ruleId = backStackEntry.arguments?.getString("ruleId") ?: return@composable Unit
-            val rule = repository.getById(ruleId)
-            EditScreen(
-                existingRule = rule,
-                onSave = { updatedRule ->
-                    repository.save(updatedRule)
-                    onRuleSaved(context, updatedRule)
-                    homeViewModel.loadRules()
-                    navController.popBackStack()
-                },
-                onBack = { navController.popBackStack() }
-            )
+        // 悬浮液态玻璃底部导航栏
+        if (showBottomBar && !imeVisible) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+            ) {
+                LiquidGlassBottomNavBar(
+                    items = navItems,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { index ->
+                        val route = navItems[index].route
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    selectedColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    activeColor = MaterialTheme.colorScheme.primary,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    barHeight = 70.dp,
+                    cornerRadius = 30.dp,
+                    showBorder = true,
+                    hazeState = bottomBarHazeState
+                )
+            }
         }
     }
 }

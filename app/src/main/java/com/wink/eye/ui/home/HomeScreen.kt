@@ -5,17 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.ModeNight
 import androidx.compose.material3.AlertDialog
@@ -26,11 +22,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,8 +45,16 @@ import com.wink.eye.data.RuleType
 import com.wink.eye.data.ScreenTimeUnit
 import com.wink.eye.service.ScreenDebugInfo
 import com.wink.eye.service.ScreenMonitorService
+import com.wink.eye.ui.components.WinkConfigCard
+import com.wink.eye.ui.components.WinkConfigList
+import com.wink.eye.ui.components.WinkEmptyState
+import com.wink.eye.ui.components.WinkGlassTopBar
+import com.wink.eye.ui.components.WinkGlassTopBarDefaults
+import com.wink.eye.ui.components.winkGlassSource
+import dev.chrisbanes.haze.rememberHazeState
 import com.wink.eye.ui.theme.ThemeManager
 import com.wink.eye.ui.theme.ThemeMode
+import com.wink.eye.ui.theme.WinkLayoutOverlay
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -96,14 +97,56 @@ fun HomeScreen(
         )
     }
 
+    // 顶栏玻璃的采样源：由列表内容提供被模糊的画面
+    val topBarHazeState = rememberHazeState()
+    val topBarHeight = WinkGlassTopBarDefaults.totalHeight()
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Wink") },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
+        containerColor = MaterialTheme.colorScheme.background,
+        // 页面内容自行处理状态栏留白，以便滚动内容能从悬浮玻璃顶栏下方穿过
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { _ ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (rules.isEmpty()) {
+                WinkEmptyState(
+                    title = stringResource(R.string.home_empty_title),
+                    subtitle = stringResource(R.string.home_empty_subtitle),
+                    modifier = Modifier.padding(top = topBarHeight)
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    WinkConfigList(
+                        list = rules,
+                        key = { it.id },
+                        modifier = Modifier
+                            .weight(1f)
+                            .winkGlassSource(topBarHazeState),
+                        extraTopPadding = topBarHeight
+                    ) { rule ->
+                        RuleCard(
+                            rule = rule,
+                            onToggle = { viewModel.toggleEnabled(rule) },
+                            onDelete = { ruleToDelete = rule },
+                            onClick = { onEditRule(rule.id) }
+                        )
+                    }
+
+                    // 【Wink 页专属面板】亮屏时长调试面板，仅本页有对应数据源，
+                    // EarClock 页不存在同类内容，两页此处不做统一。
+                    if (hasScreenTimeRule) {
+                        // 底部留白略小于列表的遮挡高度，让面板整体下移贴近悬浮菜单栏
+                        Box(Modifier.padding(bottom = WinkLayoutOverlay.DebugPanelBottomPadding)) {
+                            DebugInfoPanel(debugInfo)
+                        }
+                    }
+                }
+            }
+
+            // 悬浮液态玻璃顶栏：叠在内容之上，滚动时内容会从其下方穿过
+            WinkGlassTopBar(
+                title = "Wink",
+                hazeState = topBarHazeState,
+                modifier = Modifier.align(Alignment.TopCenter),
                 actions = {
                     IconButton(onClick = { ThemeManager.toggle(context) }) {
                         Icon(
@@ -126,60 +169,6 @@ fun HomeScreen(
                 }
             )
         }
-    ) { padding ->
-        if (rules.isEmpty()) {
-            EmptyState(modifier = Modifier.padding(padding))
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item { Spacer(Modifier.height(8.dp)) }
-                    items(rules, key = { it.id }) { rule ->
-                        RuleCard(
-                            rule = rule,
-                            onToggle = { viewModel.toggleEnabled(rule) },
-                        onDelete = { ruleToDelete = rule },
-                            onClick = { onEditRule(rule.id) }
-                        )
-                    }
-                    item { Spacer(Modifier.height(8.dp)) }
-                }
-
-                if (hasScreenTimeRule) {
-                    DebugInfoPanel(debugInfo)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = stringResource(R.string.home_empty_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.home_empty_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -190,78 +179,63 @@ private fun RuleCard(
     onDelete: () -> Unit,
     onClick: () -> Unit
 ) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (rule.enabled) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
+    val typeLabel = when (rule.type) {
+        is RuleType.Interval -> stringResource(R.string.rule_type_interval)
+        is RuleType.ScreenTime -> stringResource(R.string.rule_type_screen)
+    }
+    WinkConfigCard(
+        title = rule.name,
+        mainValue = ruleMainValue(rule),
+        badge = typeLabel,
+        subtitle = ruleDetail(rule),
+        enabled = rule.enabled,
+        onToggle = onToggle,
+        onDelete = onDelete,
+        deleteContentDescription = stringResource(R.string.home_delete_rule),
+        onClick = onClick
+    )
+}
+
+/** 卡片主值大字：规则的核心数值 + 单位 */
+@Composable
+private fun ruleMainValue(rule: Rule): String {
+    return when (rule.type) {
+        is RuleType.Interval -> stringResource(
+            R.string.summary_value,
+            rule.type.value,
+            intervalUnitLabel(rule.type.unit)
         )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = rule.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val typeLabel = when (rule.type) {
-                        is RuleType.Interval -> stringResource(R.string.rule_type_interval)
-                        is RuleType.ScreenTime -> stringResource(R.string.rule_type_screen)
-                    }
-                    Text(
-                        text = typeLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = ruleSummary(rule),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Switch(checked = rule.enabled, onCheckedChange = { onToggle() })
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.home_delete_rule),
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
+        is RuleType.ScreenTime -> stringResource(
+            R.string.summary_value,
+            rule.type.effectiveScreenOnDuration,
+            screenUnitLabel(rule.type.screenOnUnit)
+        )
+    }
+}
+
+/** 卡片底部描述：放次要参数，无次要参数时返回空串 */
+@Composable
+private fun ruleDetail(rule: Rule): String {
+    return when (rule.type) {
+        is RuleType.Interval -> ""
+        is RuleType.ScreenTime -> stringResource(
+            R.string.summary_screen_off_reset,
+            rule.type.effectiveScreenOffResetDuration,
+            screenUnitLabel(rule.type.screenOffResetUnit)
+        )
     }
 }
 
 @Composable
-private fun ruleSummary(rule: Rule): String {
-    return when (rule.type) {
-        is RuleType.Interval -> {
-            val unitLabel = when (rule.type.unit) {
-                IntervalUnit.MINUTES -> stringResource(R.string.unit_minutes)
-                IntervalUnit.SECONDS -> stringResource(R.string.unit_seconds)
-            }
-            stringResource(R.string.summary_interval, rule.type.value, unitLabel)
-        }
-        is RuleType.ScreenTime -> {
-            val onUnitLabel = if (rule.type.screenOnUnit == ScreenTimeUnit.MINUTES) stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
-            val offUnitLabel = if (rule.type.screenOffResetUnit == ScreenTimeUnit.MINUTES) stringResource(R.string.unit_minutes) else stringResource(R.string.unit_seconds)
-            stringResource(R.string.summary_screen_time, rule.type.effectiveScreenOnDuration, onUnitLabel, rule.type.effectiveScreenOffResetDuration, offUnitLabel)
-        }
-    }
+private fun intervalUnitLabel(unit: IntervalUnit): String = when (unit) {
+    IntervalUnit.MINUTES -> stringResource(R.string.unit_minutes)
+    IntervalUnit.SECONDS -> stringResource(R.string.unit_seconds)
 }
+
+@Composable
+private fun screenUnitLabel(unit: ScreenTimeUnit): String =
+    if (unit == ScreenTimeUnit.MINUTES) stringResource(R.string.unit_minutes)
+    else stringResource(R.string.unit_seconds)
 
 private fun formatDuration(ms: Long): String {
     val totalSeconds = ms / 1000
@@ -277,6 +251,12 @@ private fun formatTimestamp(ts: Long): String {
     return sdf.format(Date(ts))
 }
 
+/**
+ * 【Wink 页专属面板】亮屏时长实时统计。
+ *
+ * 数据来自 [ScreenMonitorService]，只有 Wink 页（亮屏时长规则）才有对应概念，
+ * EarClock 页没有同类面板，因此两页列表高度的一致性不包含此面板占位。
+ */
 @Composable
 private fun DebugInfoPanel(debugInfo: ScreenDebugInfo) {
     // 内部自驱动：每秒更新 now，now 是 Compose state，变化必然触发重组

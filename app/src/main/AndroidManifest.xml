@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
@@ -10,6 +11,19 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 持有后可在后台直接启动闹钟全屏页（系统对「有悬浮窗权限」场景豁免后台启动 Activity 限制），
+         作为 fullScreenIntent 被厂商 ROM 降级时的可靠兜底 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 二维码 Tab：取景识别。运行时权限只在进入该 Tab 时申请，
+         不在 Application 启动流程里弹窗；camera.any 声明为非必需，
+         避免无摄像头设备被应用市场过滤 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
 
     <application
         android:name=".WinkApp"
@@ -23,7 +37,8 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Wink">
+            android:theme="@style/Theme.Wink"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -37,6 +52,13 @@
             android:turnScreenOn="true"
             android:theme="@style/Theme.Wink.Reminder" />
 
+        <activity
+            android:name=".EarClockAlarmActivity"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Wink.Reminder" />
+
         <service
             android:name=".service.ScreenMonitorService"
             android:foregroundServiceType="specialUse"
@@ -45,6 +67,11 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="eye_care_screen_monitor" />
         </service>
+
+        <service
+            android:name=".service.EarClockRingingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <receiver
             android:name=".receiver.ScreenReceiver"
@@ -61,6 +88,20 @@
         <receiver
             android:name=".service.DismissReceiver"
             android:exported="false" />
+
+        <receiver
+            android:name=".service.EarClockAlarmReceiver"
+            android:exported="false" />
+
+        <!-- 开机后重排闹钟：AlarmManager 的注册项在重启后会被清除 -->
+        <receiver
+            android:name=".service.BootCompletedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

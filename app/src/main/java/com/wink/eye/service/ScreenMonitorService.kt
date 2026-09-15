@@ -10,14 +10,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
-import android.view.Display
 import com.wink.eye.R
 import com.wink.eye.WinkApp
 import com.wink.eye.data.RuleType
@@ -115,21 +113,14 @@ class ScreenMonitorService : Service() {
         // #2 恢复持久化状态
         restoreState()
 
-        // #6 查询实际屏幕状态（避免重启后状态不准）
-        isScreenOn = isScreenCurrentlyOn().also { actualScreenOn ->
-            if (actualScreenOn) {
-                // 屏幕亮起但锁屏状态下不计亮屏时长，等用户解锁后再开始
-                if (isDeviceLocked()) {
-                    isScreenOn = false
-                    screenOffTime = System.currentTimeMillis()
-                    lastScreenOffTimestamp = screenOffTime
-                } else {
-                    screenOnTime = System.currentTimeMillis()
-                }
-            } else {
-                screenOffTime = System.currentTimeMillis()
-                lastScreenOffTimestamp = screenOffTime
-            }
+        // 仅在屏幕可交互且已解锁时计时。此前用 also 在内部写 false 后，
+        // 又被外层赋值覆盖为 true，导致锁屏/AOD 期间仍累计亮屏时长。
+        if (isScreenCurrentlyOn() && !isDeviceLocked()) {
+            isScreenOn = true
+            screenOnTime = System.currentTimeMillis()
+        } else {
+            // 服务重启时若此前已记录息屏时间，不能覆盖它，否则会丢失暗屏 5 分钟的重置依据。
+            markScreenInactive(preserveExistingOffTime = !isScreenOn && screenOffTime > 0L)
         }
 
         // 启动定时检查
@@ -180,6 +171,9 @@ class ScreenMonitorService : Service() {
         // 屏幕亮起但设备处于锁屏状态，等待用户解锁后再开始计时
         if (isDeviceLocked()) {
             Log.d(TAG, "屏幕亮起但设备锁屏，等待解锁后开始计时")
+            // 不能仅 return：服务若在锁屏时重启，可能残留 isScreenOn=true，
+            // 从而继续累计并保留旧的阈值闹钟。
+            markScreenInactive(preserveExistingOffTime = !isScreenOn && screenOffTime > 0L)
             return
         }
         resumeScreenOnIfNeeded()
@@ -212,14 +206,20 @@ class ScreenMonitorService : Service() {
     fun handleScreenOff() {
         if (isScreenOn) {
             accumulatedScreenOnMs += System.currentTimeMillis() - screenOnTime
-            isScreenOn = false
-            screenOffTime = System.currentTimeMillis()
-            lastScreenOffTimestamp = screenOffTime
-
-            cancelScreenTimeAlarm()
-            updateDebugInfo()
-            saveState()
         }
+        markScreenInactive()
+    }
+
+    /** 标记为非计时状态，并撤销在锁屏/息屏后已无效的阈值闹钟。 */
+    private fun markScreenInactive(preserveExistingOffTime: Boolean = false) {
+        isScreenOn = false
+        if (!preserveExistingOffTime || screenOffTime == 0L) {
+            screenOffTime = System.currentTimeMillis()
+        }
+        lastScreenOffTimestamp = screenOffTime
+        cancelScreenTimeAlarm()
+        updateDebugInfo()
+        saveState()
     }
 
     private fun updateDebugInfo() {
@@ -393,8 +393,9 @@ class ScreenMonitorService : Service() {
 
     // #6 查询当前屏幕实际状态
     private fun isScreenCurrentlyOn(): Boolean {
-        val displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
-        return displayManager.displays.any { it.state != Display.STATE_OFF }
+        // Display.STATE_DOZE 也会被旧实现视为“亮屏”，但 AOD/锁屏不应计入。
+        val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+        return powerManager?.isInteractive == true
     }
 
     // 设备是否处于锁屏状态（含锁屏界面可见但屏幕仍亮）

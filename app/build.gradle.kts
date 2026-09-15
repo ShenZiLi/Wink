@@ -55,9 +55,14 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
 
+    // CameraX 1.4.0：要求 compileSdk ≥ 35，本项目 36，满足
+    val cameraX = "1.4.0"
+
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    // 提供 collectAsStateWithLifecycle 与 LocalLifecycleOwner（2.8+ 起从 compose.ui 迁到这里）
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.navigation:navigation-compose:2.8.5")
 
@@ -67,6 +72,20 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
+    // Haze 1.6.10：Compose 背景模糊（backdrop blur），液态玻璃的基础层。
+    // 说明：Haze 2 的 haze-glass 模块（折射玻璃）要求 Kotlin 2.4 + AGP 9.1 + compileSdk 37，
+    // 本项目的构建链暂时不满足，故选用稳定版 1.x；折射/高光由自绘玻璃层补齐。
+    implementation("dev.chrisbanes.haze:haze:1.6.10")
+
+    // 二维码 Tab：CameraX 取景 + ML Kit 识别 + ZXing 生成
+    implementation("androidx.camera:camera-core:$cameraX")
+    implementation("androidx.camera:camera-camera2:$cameraX")
+    implementation("androidx.camera:camera-lifecycle:$cameraX")
+    implementation("androidx.camera:camera-view:$cameraX")
+    // bundled 版：识别模型打包进 APK，运行时不需要 Google Play 服务在线下载
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.zxing:core:3.5.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
