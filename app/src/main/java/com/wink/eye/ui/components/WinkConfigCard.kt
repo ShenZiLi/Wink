@@ -1,5 +1,6 @@
 package com.wink.eye.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,13 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -46,8 +42,8 @@ import com.wink.eye.ui.theme.WinkLayoutOverlay
  */
 object WinkListSpec {
 
-    /** 内容层使用克制的分组表面，留白来自排版而不是厚重阴影。 */
-    val CardContentPadding = 18.dp
+    /** 卡片内部四周内边距 */
+    val CardContentPadding = 16.dp
 
     /** 主标题与主值大字之间的间距 */
     val TitleToMainValueGap = 4.dp
@@ -71,10 +67,10 @@ object WinkListSpec {
     val DeleteIconSize = 20.dp
 
     /** 列表左右内边距 */
-    val ListHorizontalPadding = 12.dp
+    val ListHorizontalPadding = 16.dp
 
     /** 列表项之间的纵向间距 */
-    val ItemSpacing = 8.dp
+    val ItemSpacing = 12.dp
 
     /** 列表顶部 / 底部额外留白 */
     val ListEdgeSpacer = 8.dp
@@ -112,25 +108,21 @@ fun WinkConfigCard(
     deleteContentDescription: String,
     onClick: () -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
-    val containerColor by animateColorAsState(
-        targetValue = if (enabled) {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLowest
-        },
-        animationSpec = tween(180),
-        label = "config_card_surface"
-    )
-
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
+        border = if (enabled) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        },
         colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            containerColor = if (enabled) {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            }
+        )
     ) {
         Row(
             modifier = Modifier
@@ -143,7 +135,7 @@ fun WinkConfigCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -156,7 +148,7 @@ fun WinkConfigCard(
                     Text(
                         text = mainValue,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -170,8 +162,8 @@ fun WinkConfigCard(
                     Text(
                         text = badge,
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                         maxLines = 1
                     )
                     if (subtitle.isNotEmpty()) {
@@ -186,18 +178,12 @@ fun WinkConfigCard(
                     }
                 }
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onToggle()
-                }
-            )
+            Switch(checked = enabled, onCheckedChange = { onToggle() })
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = deleteContentDescription,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(WinkListSpec.DeleteIconSize)
                 )
             }
